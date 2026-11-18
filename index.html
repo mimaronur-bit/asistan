@@ -551,6 +551,7 @@ const ctxs={};
 function chatBox(key,intro,ph,ctx,sugg,deep){
   if(ctx)ctxs[key]=ctx;
   const c=chats[key]||[];
+  if(!cfgAI())return `<div class="card"><p class="sub" style="margin:0 0 10px">Yapay zekâ ile soru sormak için Claude aboneliğinle çalışan Radar Paneli'ni kullan. Ücret çıkmaz.</p><a class="btn big" href="https://claude.ai/artifact/QYTUxkqQ2kK82aWWwQK4oV" target="_blank" rel="noopener"><span class="ms">open_in_new</span>Radar Paneli'nde sor</a></div>`;
   return `<div class="card" data-chat="${esc(key)}">
     ${intro&&!c.length?`<p class="sub" style="margin:0 0 10px">${esc(intro)}</p>`:""}
     ${deep&&!c.length?`<button class="btn big" type="button" data-deep="${esc(key)}" style="margin-bottom:12px"><span class="ms">analytics</span>Derinlemesine analiz</button>`:""}
