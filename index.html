@@ -175,6 +175,12 @@ h1.hl{font:400 30px/38px var(--serif);letter-spacing:-.01em;margin:4px 0 0;text-
 .hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .ms{font-size:18px;color:var(--mute)}
 .pop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:18px}
+.yseg{display:flex;gap:4px;padding:4px;background:var(--high);border-radius:14px;margin-bottom:8px}
+.yseg button{flex:1;height:40px;border:0;border-radius:10px;background:none;display:flex;align-items:center;justify-content:center;gap:6px;font:600 13px/16px var(--sans);color:var(--mute)}
+.yseg button.on{background:var(--card);color:var(--red);box-shadow:0 1px 4px rgba(42,36,35,.08)}.yseg small{font-weight:500;font-size:10px;color:var(--mute)}
+.sres{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.srow{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:2px;color:var(--ink);font-family:var(--sans)}
+.srow b{font-size:14px}.srow .st{font-size:13px;color:var(--red);font-weight:600}.srow .sn{font-size:12px;line-height:17px;color:var(--mute)}
 .ysrc{margin-top:12px;position:relative}
 .ydd{width:100%;display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:14px;font:600 14px/20px var(--sans);color:var(--ink);text-align:left}
 .ydd .l{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -588,14 +594,16 @@ const YTOOLS=[
      for(const a of articles){if(!ysel.has(a.code)||(kod&&a.code!==kod))continue;const t=norm(a.title+" "+a.body);if(terms.every(w=>t.includes(w))){const i=t.indexOf(terms[0]);hits.push(`${a.code} ${a.madde}${a.title?" – "+a.title:""}: …${a.body.slice(Math.max(0,i-120),i+220).replace(/\n+/g," ")}…`)}}
      return hits.length?hits.slice(0,20).join("\n")+(hits.length>20?`\n(+${hits.length-20} madde daha; aramayı daralt)`:""):"Eşleşme yok."}}
 ];
+let ymode=(()=>{try{return localStorage.getItem("ymode")=="sor"?"sor":"ara"}catch(e){return"ara"}})(),ysq="";
 let ysel=new Set((()=>{try{return JSON.parse(localStorage.getItem("ysel")||"[]")}catch(e){return[]}})()),yopen=false;
 const ysave2=()=>{try{localStorage.setItem("ysel",JSON.stringify([...ysel]))}catch(e){}};
 function ysrcDraw(){
   const el=$("#ysrc");if(!el)return;
   const codes=Object.keys(sources).filter(c=>sources[c].count>0);
   for(const c of [...ysel])if(!codes.includes(c))ysel.delete(c);
-  const lab=ysel.size?[...ysel].join(", "):"Yönetmelik seç";
-  el.innerHTML=`<button class="ydd${ysel.size?"":" warn"}" type="button" data-yopen="1" aria-expanded="${yopen}"><span class="ms">menu_book</span><span class="l">${esc(lab)}</span><span class="ms">${yopen?"expand_less":"expand_more"}</span></button>`+
+  const lab=ysel.size?[...ysel].join(", "):(ymode==="ara"?"Tüm yönetmelikler":"Yönetmelik seç");
+  const seg=`<div class="yseg"><button type="button" class="${ymode==="ara"?"on":""}" data-ymode="ara"><span class="ms">search</span>Ara <small>ücretsiz</small></button><button type="button" class="${ymode==="sor"?"on":""}" data-ymode="sor"><span class="ms">gavel</span>Danışmana sor</button></div>`;
+  el.innerHTML=seg+`<button class="ydd${ysel.size||ymode==="ara"?"":" warn"}" type="button" data-yopen="1" aria-expanded="${yopen}"><span class="ms">menu_book</span><span class="l">${esc(lab)}</span><span class="ms">${yopen?"expand_less":"expand_more"}</span></button>`+
    (yopen?`<div class="ypanel">${codes.map(c=>`<button class="yopt${ysel.has(c)?" on":""}" type="button" data-ysel="${esc(c)}"><span class="ms">${ysel.has(c)?"check_box":"check_box_outline_blank"}</span><span class="n">${esc(sources[c].name)}</span><span class="c">${sources[c].count}</span></button>`).join("")}${codes.length?`<div class="yfoot"><button class="yopt" type="button" data-ysel="*">Tümünü seç</button><button class="yopt" type="button" data-ysel="-">Temizle</button></div>`:'<p class="hint">Kaynaklar yüklenince burada görünür.</p>'}</div>`:"");
 }
 const toolLabel={madde_oku:"Madde okunuyor",metin_ara:"Kaynaklarda aranıyor"};
@@ -607,16 +615,20 @@ function ysystem(){
   return rules+"\n\n---\n\nSEÇİLİ KAYNAKLAR (yalnızca bunlardan cevap ver): "+sel.join(", ")+"\n\nKAYNAK LİSTESİ:\n"+lst+"\n\n---\n\nMADDE DİZİNİ:\n"+idx+"\n\n---\n\nARAÇLAR: madde_oku ile maddelerin tam metnini, metin_ara ile tüm kaynaklarda arama yaparsın. Cevapta madde atıflarını her zaman 'KOD Madde N' biçiminde yaz (ör. PAIY Madde 23), Onur bunlara dokunup metni açabiliyor. Alıntıları '>' ile başlayan satırlara yaz."}
 
 const STOP=new Set("nedir nasil nelerdir icin ile veya ama gibi daha cok olan olarak bir bu su ve de da mi mu mudur midir hangi kadar sonra once var yok yapi yonetmelik madde maddesi nasildir ise ne".split(" "));
-function retrieve(q,n=6,cap=7000){
+function rank(q,all){
   const terms=[...new Set(norm(q).split(/[^a-z0-9]+/).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.length>6?w.slice(0,w.length-2):w))];
-  if(!terms.length)return"";
+  const m=q.trim().match(/^([A-Za-zİıÖöÜüŞşÇçĞğ]{2,6})\s*(?:madde\s*)?(\d+(?:\/[A-Za-z])?)$/);
   const sc=[];
-  for(const a of articles){if(!ysel.has(a.code))continue;const t=norm(a.title),b=norm(a.body);let v=0,hit=0;
+  for(const a of articles){if(!all&&!ysel.has(a.code))continue;if(all&&ysel.size&&!ysel.has(a.code))continue;
+    if(m&&a.code===m[1].toUpperCase().replace(/İ/g,"I")&&norm(a.madde)==="madde "+m[2].toLowerCase()){sc.push([1e6,a]);continue}
+    if(!terms.length)continue;
+    const t=norm(a.title),b=norm(a.body);let v=0,hit=0;
     for(const w of terms){const ti=t.includes(w),bi=b.split(w).length-1;if(ti||bi)hit++;v+=(ti?5:0)+Math.min(bi,4)}
-    if(hit)sc.push([v*hit,a])}
-  sc.sort((x,y)=>y[0]-x[0]);
+    if(hit)sc.push([v*hit*(hit===terms.length?3:1),a])}
+  sc.sort((x,y)=>y[0]-x[0]);return sc.map(x=>x[1])}
+function retrieve(q,n=6,cap=7000){
   let out="",used=0;
-  for(const [,a] of sc.slice(0,n)){const t=`[${a.code} ${a.madde}${a.title?" – "+a.title:""}]\n${a.body}`.slice(0,2400);if(used+t.length>cap)break;out+=t+"\n\n=====\n\n";used+=t.length}
+  for(const a of rank(q,false).slice(0,n)){const t=`[${a.code} ${a.madde}${a.title?" – "+a.title:""}]\n${a.body}`.slice(0,2400);if(used+t.length>cap)break;out+=t+"\n\n=====\n\n";used+=t.length}
   return out}
 async function yask(q){
   if(ybusy)return;
@@ -643,6 +655,13 @@ function ydraw(){
   ysrcDraw();
   const out=$("#yout");if(!out)return;
   $("#ysend").disabled=ybusy;
+  $("#yq").placeholder=ymode==="ara"?"Madde ara: kelime ya da 'PAIY 23'…":"Yönetmelik sorusu yazın…";
+  if(ymode==="ara"){
+    const res=ysq?rank(ysq,true):[];
+    out.innerHTML=!ysq?`<section class="hello"><h1>Madde ara</h1><p>Yönetmelik maddelerinde kelimeyle ya da "PAIY 23" gibi doğrudan madde numarasıyla ara. Bu ücretsizdir ve internetsiz de çalışır.</p><span class="srcs"><i></i>${articles.length?Object.keys(sources).length+" kaynak · "+articles.length+" madde":esc(statusText)}</span></section><div class="pop"><span class="sub" style="margin-right:2px">Örnek:</span>${["çekme mesafesi","bodrum kat","otopark","PAIY 23"].map(p=>`<button class="pchip" type="button" data-sq="${esc(p)}">${esc(p)}</button>`).join("")}</div>`
+     :`<div class="row" style="margin-top:12px"><span class="eyebrow">${res.length} sonuç</span><button class="btn sec2" type="button" data-sq=""><span class="ms">close</span>Temizle</button></div><div class="sres">${res.slice(0,40).map(a=>{const t=norm(a.body),w=norm(ysq).split(/[^a-z0-9]+/).filter(x=>x.length>2)[0]||"",i=Math.max(0,t.indexOf(w));return `<button class="srow" type="button" data-sa="${esc(a.code)}|${esc(a.madde)}"><b>${esc(a.code)} ${esc(a.madde)}</b>${a.title?`<span class="st">${esc(a.title)}</span>`:""}<span class="sn">…${esc(a.body.slice(Math.max(0,i-60),i+140).replace(/\s+/g," "))}…</span></button>`}).join("")||'<p class="hint">Eşleşen madde yok.</p>'}</div>`;
+    return}
+  if(ymode==="sor"&&!cfgAI()){out.innerHTML=`<section class="hello"><h1>Danışmana sor</h1><p>Yapay zekâ ile yorumlu cevap için Claude aboneliğinle çalışan sayfayı kullanabilirsin. Ücret çıkmaz.</p><div class="sheetrow" style="margin-top:14px"><a class="btn big" href="https://claude.ai/artifact/YNWRG93eS8UUt4Gxm8nWMu" target="_blank" rel="noopener"><span class="ms">open_in_new</span>Danışman sayfasını aç</a></div><p class="hint" style="margin-top:12px">Uygulama içinde sormak istersen Ayarlar'a kendi API anahtarını girebilirsin (kullandıkça ücretlenir).</p></section>`;return}
   const st=articles.length?Object.keys(sources).length+" kaynak · "+articles.length+" madde":statusText;
   if(!ychat.length){
     out.innerHTML=`<section class="hello"><h1>Ne sormak istersin, Onur?</h1><p>İmar mevzuatı, çekme mesafeleri, emsal hesabı veya parsel şartlarını sorabilirsin.</p>
@@ -679,7 +698,7 @@ $("#mic").onclick=()=>{
   try{rec.start()}catch(e){}
 };
 function ygrow(){const t=$("#yq");t.style.height="40px";t.style.height=Math.min(t.scrollHeight,140)+"px"}
-function ysend(){const q=$("#yq").value.trim();if(!q||ybusy)return;$("#yq").value="";ygrow();yask(q)}
+function ysend(){const q=$("#yq").value.trim();if(!q||ybusy)return;if(ymode==="ara"){ysq=q;ydraw();return}if(!cfgAI())return;$("#yq").value="";ygrow();yask(q)}
 $("#yf").onsubmit=e=>{e.preventDefault();ysend()};
 $("#yq").addEventListener("input",ygrow);
 $("#yq").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!/Mobi|Android/i.test(navigator.userAgent)){e.preventDefault();ysend()}});
@@ -805,6 +824,9 @@ document.addEventListener("click",e=>{
   if(d.note){openNote(d.note);return}
   if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"radar",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
   if(d.h){const h=yhist.find(x=>x.id===d.h);if(h&&!ybusy){yconv=d.h;ychat=(h.messages||[]).map(m=>({...m}));ydraw();window.scrollTo(0,0)}return}
+  if(d.ymode){ymode=d.ymode;try{localStorage.setItem("ymode",ymode)}catch(e){}ydraw();return}
+  if(d.sq!==undefined){ysq=d.sq;if(d.sq)$("#yq").value=d.sq;else $("#yq").value="";ydraw();window.scrollTo(0,0);return}
+  if(d.sa){const [c,m]=d.sa.split("|");openArticle(c,m);return}
   if(d.yopen){yopen=!yopen;ysrcDraw();return}
   if(d.ysel!==undefined){const c=d.ysel;if(c==="*")Object.keys(sources).forEach(x=>sources[x].count>0&&ysel.add(x));else if(c==="-")ysel.clear();else ysel.has(c)?ysel.delete(c):ysel.add(c);ysave2();ysrcDraw();ydraw();return}
   if(d.pop){$("#yq").value=d.pop;ygrow();$("#yq").focus();return}
