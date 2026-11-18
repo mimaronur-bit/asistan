@@ -175,6 +175,7 @@ h1.hl{font:400 30px/38px var(--serif);letter-spacing:-.01em;margin:4px 0 0;text-
 .hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .ms{font-size:18px;color:var(--mute)}
 .pop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:18px}
+.tgl{width:100%;display:flex;align-items:center;gap:10px;height:44px;border:0;background:none;padding:0;font:600 13px/16px var(--sans);color:var(--mute);text-align:left}.tgl .ms{font-size:30px}.tgl.on{color:var(--red)}
 .yseg{display:flex;gap:4px;padding:4px;background:var(--high);border-radius:14px;margin-bottom:8px}
 .yseg button{flex:1;height:40px;border:0;border-radius:10px;background:none;display:flex;align-items:center;justify-content:center;gap:6px;font:600 13px/16px var(--sans);color:var(--mute)}
 .yseg button.on{background:var(--card);color:var(--red);box-shadow:0 1px 4px rgba(42,36,35,.08)}.yseg small{font-weight:500;font-size:10px;color:var(--mute)}
@@ -284,8 +285,8 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 const MODELS={sonnet:"claude-sonnet-5-5",haiku:"claude-haiku-5-5"};
 const getModel=()=>MODELS[CFG.get("model")]||MODELS.sonnet;
 const CFG={get:k=>{try{return localStorage.getItem("as_"+k)||""}catch(e){return""}},set:(k,v)=>{try{localStorage.setItem("as_"+k,v)}catch(e){}}};
-const cfgGit=()=>!!(CFG.get("repo")&&CFG.get("gh"));
-const cfgAI=()=>!!CFG.get("claude");
+const cfgGit=()=>!!(CFG.get("repo")&&CFG.get("gh"))&&CFG.get("gitoff")!=="1";
+const cfgAI=()=>!!CFG.get("claude")&&CFG.get("aion")==="1";
 function idb(){return new Promise((res,rej)=>{const r=indexedDB.open("asistan",1);r.onupgradeneeded=()=>r.result.createObjectStore("kv");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function kvGet(k){try{const d=await idb();return await new Promise((res,rej)=>{const q=d.transaction("kv").objectStore("kv").get(k);q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)})}catch(e){return undefined}}
 async function kvSet(k,v){try{const d=await idb();await new Promise((res,rej)=>{const t=d.transaction("kv","readwrite");t.objectStore("kv").put(v,k);t.oncomplete=res;t.onerror=()=>rej(t.error)})}catch(e){}}
@@ -346,7 +347,7 @@ let syncP=null;
 function sync(){if(syncing)return syncP;syncP=sync0();return syncP}
 async function sync0(){
   if(syncing)return;
-  if(!cfgGit()){statusText="Kurulum gerekli";buildAll();render(true);return}
+  if(!cfgGit()){statusText=CFG.get("gitoff")==="1"?"İçerik çekme kapalı · kayıtlı içerik gösteriliyor":"Kurulum gerekli";buildAll();render(true);return}
   syncing=true;$("#refresh").disabled=true;
   try{
     const tree=await gh("/git/trees/HEAD?recursive=1");
@@ -447,7 +448,7 @@ function vHome(){
   const hi=h<5?"İyi geceler":h<12?"Günaydın":h<18?"İyi günler":"İyi akşamlar";
   const f=finans[0],top=feedItems()[0];
   const topics=[...new Set(items.map(i=>i.topic))].slice(0,3);
-  const setup=(!cfgGit()||!cfgAI())?`<article class="card setup sec"><div class="row"><span class="badge">Kurulum</span></div><h3 class="h2" style="margin-top:8px">${!cfgGit()?"İçeriğini bağla":"Soru sormayı aç"}</h3><p class="txt">${!cfgGit()?"Radar raporları ve yönetmelik maddeleri için gizli GitHub deposunu ve anahtarını gir.":"Danışmana ve radara soru sorabilmek için Claude API anahtarını gir."}</p><div style="margin-top:12px"><button class="btn" type="button" data-go="ayar">Ayarlar'a git<span class="ms">arrow_forward</span></button></div></article>`:"";
+  const setup=(!(CFG.get("repo")&&CFG.get("gh")))?`<article class="card setup sec"><div class="row"><span class="badge">Kurulum</span></div><h3 class="h2" style="margin-top:8px">${!cfgGit()?"İçeriğini bağla":"Soru sormayı aç"}</h3><p class="txt">${!cfgGit()?"Radar raporları ve yönetmelik maddeleri için gizli GitHub deposunu ve anahtarını gir.":"Danışmana ve radara soru sorabilmek için Claude API anahtarını gir."}</p><div style="margin-top:12px"><button class="btn" type="button" data-go="ayar">Ayarlar'a git<span class="ms">arrow_forward</span></button></div></article>`:"";
   let feat;
   if(top){const what=field(top.body,["Ne oldu","Ne değişti"])||top.body.slice(0,300);
     feat=`<article class="card">
@@ -762,12 +763,14 @@ function vAyar(){
     <p class="hint">Radar raporlarının (<b>radar/raporlar</b>) ve yönetmelik maddelerinin (<b>kaynaklar</b>) bulunduğu gizli GitHub deposu.</p>
     <div class="field"><label for="srepo">Depo (sahip/ad)</label><input id="srepo" value="${esc(CFG.get("repo"))}" placeholder="kullanici/icerik" autocapitalize="off" autocomplete="off"></div>
     <div class="field"><label for="sgh">GitHub erişim anahtarı</label><input id="sgh" type="password" value="${esc(CFG.get("gh"))}" placeholder="github_pat_…" autocomplete="off"></div>
+    <button class="tgl${CFG.get("gitoff")==="1"?"":" on"}" type="button" data-tgl="gitoff"><span class="ms">${CFG.get("gitoff")==="1"?"toggle_off":"toggle_on"}</span><span class="n">İçerik çekme ${CFG.get("gitoff")==="1"?"kapalı (anahtar saklı)":"açık"}</span></button>
     <p class="hint">Yalnızca bu depo için, salt okuma (Contents: Read-only) izinli bir anahtar oluştur.</p>
   </div>
   <div class="card sec">
     <div class="eyebrow">Soru sorma</div>
     <p class="hint">Radara ve yönetmelik danışmanına soru sormak için kendi Claude API anahtarın. Kullandıkça ücretlenir.</p>
     <div class="field"><label for="sai">Claude API anahtarı</label><input id="sai" type="password" value="${esc(CFG.get("claude"))}" placeholder="sk-ant-…" autocomplete="off"></div>
+    <button class="tgl${CFG.get("aion")==="1"?" on":""}" type="button" data-tgl="aion"><span class="ms">${CFG.get("aion")==="1"?"toggle_on":"toggle_off"}</span><span class="n">Yapay zekâ soruları ${CFG.get("aion")==="1"?"açık (ücretli)":"kapalı (anahtar saklı)"}</span></button>
     <div class="field"><label for="smodel">Model</label><select id="smodel"><option value="sonnet"${CFG.get("model")!=="haiku"?" selected":""}>Sonnet: daha dikkatli</option><option value="haiku"${CFG.get("model")==="haiku"?" selected":""}>Haiku: çok daha ucuz</option></select></div>
   </div>
   <div class="sheetrow"><button class="btn big" type="button" id="sset">Kaydet ve içeriği çek</button></div>
@@ -825,6 +828,7 @@ document.addEventListener("click",e=>{
   if(d.note){openNote(d.note);return}
   if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"radar",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
   if(d.h){const h=yhist.find(x=>x.id===d.h);if(h&&!ybusy){yconv=d.h;ychat=(h.messages||[]).map(m=>({...m}));ydraw();window.scrollTo(0,0)}return}
+  if(d.tgl){const k=d.tgl;if(k==="aion")CFG.set("aion",CFG.get("aion")==="1"?"0":"1");else CFG.set("gitoff",CFG.get("gitoff")==="1"?"0":"1");toast(k==="aion"?(CFG.get("aion")==="1"?"Yapay zekâ soruları açıldı":"Yapay zekâ soruları kapatıldı"):(CFG.get("gitoff")==="1"?"İçerik çekme kapatıldı":"İçerik çekme açıldı"));render(true);if(k==="gitoff"&&CFG.get("gitoff")!=="1")sync();return}
   if(d.ymode){ymode=d.ymode;try{localStorage.setItem("ymode",ymode)}catch(e){}ydraw();return}
   if(d.sq!==undefined){ysq=d.sq;if(d.sq)$("#yq").value=d.sq;else $("#yq").value="";ydraw();window.scrollTo(0,0);return}
   if(d.sa){const [c,m]=d.sa.split("|");openArticle(c,m);return}
