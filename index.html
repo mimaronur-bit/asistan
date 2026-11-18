@@ -217,6 +217,7 @@ h1.hl{font:400 30px/38px var(--serif);letter-spacing:-.01em;margin:4px 0 0;text-
 .note .nf .ms{font-size:15px}
 .field{display:flex;flex-direction:column;gap:6px;margin-top:14px}
 .field label{font:600 11px/14px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mute)}
+.field select{width:100%;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:0 14px;height:52px;font-size:14px;outline:none}
 .field input,.field textarea{width:100%;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:0 14px;height:52px;font-size:14px;outline:none}
 .field textarea{height:140px;padding:12px 14px;resize:vertical;line-height:21px}
 .field input:focus,.field textarea:focus{border-color:var(--red)}
@@ -266,7 +267,8 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 
 <script>
 /* ============ Ayarlar, depolama ============ */
-const MODEL="claude-sonnet-5-5";
+const MODELS={sonnet:"claude-sonnet-5-5",haiku:"claude-haiku-5-5"};
+const getModel=()=>MODELS[CFG.get("model")]||MODELS.sonnet;
 const CFG={get:k=>{try{return localStorage.getItem("as_"+k)||""}catch(e){return""}},set:(k,v)=>{try{localStorage.setItem("as_"+k,v)}catch(e){}}};
 const cfgGit=()=>!!(CFG.get("repo")&&CFG.get("gh"));
 const cfgAI=()=>!!CFG.get("claude");
@@ -392,9 +394,10 @@ function buildAll(){
 async function callClaude({system,messages,tools,onTool}){
   const key=CFG.get("claude");if(!key){const e=new Error("no_key");e.code="no_key";throw e}
   const msgs=messages.map(m=>({role:m.role,content:m.content}));
-  for(let i=0;i<8;i++){
-    const body={model:MODEL,max_tokens:3000,system,messages:msgs};
+  for(let i=0;i<6;i++){
+    const body={model:getModel(),max_tokens:2000,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages:msgs};
     if(tools&&tools.length)body.tools=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema}));
+    if(msgs.length>1){const lm=msgs[msgs.length-1];if(Array.isArray(lm.content)&&lm.content.length){const lb=lm.content[lm.content.length-1];if(lb&&lb.type==="tool_result")lb.cache_control={type:"ephemeral"}}}
     const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify(body)});
     if(!r.ok){const e=new Error("api_"+r.status);e.code=r.status===401?"bad_key":r.status===429?"rate":"api";throw e}
     const j=await r.json();
@@ -707,6 +710,7 @@ function vAyar(){
     <div class="eyebrow">Soru sorma</div>
     <p class="hint">Radara ve yönetmelik danışmanına soru sormak için kendi Claude API anahtarın. Kullandıkça ücretlenir.</p>
     <div class="field"><label for="sai">Claude API anahtarı</label><input id="sai" type="password" value="${esc(CFG.get("claude"))}" placeholder="sk-ant-…" autocomplete="off"></div>
+    <div class="field"><label for="smodel">Model</label><select id="smodel"><option value="sonnet"${CFG.get("model")!=="haiku"?" selected":""}>Sonnet: daha dikkatli</option><option value="haiku"${CFG.get("model")==="haiku"?" selected":""}>Haiku: çok daha ucuz</option></select></div>
   </div>
   <div class="sheetrow"><button class="btn big" type="button" id="sset">Kaydet ve içeriği çek</button></div>
   <div class="card sec"><div class="eyebrow">Durum</div><p class="txt" style="margin:6px 0 0">${esc(statusText)}${loaded?" · "+Object.keys(cache).length+" dosya, "+articles.length+" madde":""}</p></div>
@@ -717,7 +721,7 @@ function vAyar(){
 function bindAyar(){
   const s=$("#sset");if(s)s.onclick=()=>{
     CFG.set("repo",$("#srepo").value.trim().replace(/^https?:\/\/github\.com\//,"").replace(/\.git$/,"").replace(/\/$/,""));
-    CFG.set("gh",$("#sgh").value.trim());CFG.set("claude",$("#sai").value.trim());
+    CFG.set("gh",$("#sgh").value.trim());CFG.set("claude",$("#sai").value.trim());CFG.set("model",$("#smodel").value);
     toast("Kaydedildi");statusText="İçerik yükleniyor…";sync();
   };
   const b=$("#sbk");if(b)b.onclick=()=>copy(JSON.stringify(notes,null,1));
