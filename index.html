@@ -743,7 +743,8 @@ $("#yq").addEventListener("input",ygrow);
 $("#yq").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey&&!/Mobi|Android/i.test(navigator.userAgent)){e.preventDefault();ysend()}});
 
 /* ============ Notlar (bu cihazda saklanır) ============ */
-const KINDS={yonetmelik:"Yönetmelik",radar:"Radar",saha:"Saha",diger:"Diğer"};
+const KINDS={bireysel:"Bireysel",aile:"Aile",is:"İş"};const KICON={bireysel:"person",aile:"family_restroom",is:"work"};
+notes.forEach(n=>{if(!KINDS[n.kind])n.kind="is"});
 function persistNotes(){try{localStorage.setItem("asnotes",JSON.stringify(notes))}catch(e){toast("Kaydedilemedi, depolama dolu olabilir")}}
 function saveNote(n){const now=Date.now();if(!n.id){n.id="n"+now;n.createdAt=now}n.updatedAt=now;notes=[n,...notes.filter(x=>x.id!==n.id)];persistNotes();return true}
 function removeNote(id){notes=notes.filter(x=>x.id!==id);persistNotes()}
@@ -756,16 +757,16 @@ function vNotes(){
   const q=norm(S.nq||"");
   const count=k=>notes.filter(n=>k==="all"||n.kind===k).length;
   const l=notes.filter(n=>(S.nf==="all"||n.kind===S.nf)&&(!q||norm((n.title||"")+" "+(n.body||"")+" "+(n.tag||"")).includes(q)));
-  const chips=[["all","Tümü"],["yonetmelik","Yönetmelik"],["radar","Radar"],["saha","Saha"]];
-  return `<div class="nhead"><div><h1>Notlar ve Kayıtlar</h1><p class="sub" style="margin:2px 0 0">Danışmanlık notları ve mevzuat işaretlemeleri</p></div>
+  const chips=[["all","Tümü"],["bireysel","Bireysel"],["aile","Aile"],["is","İş"]];
+  return `<div class="nhead"><div><h1>Notlar ve Kayıtlar</h1><p class="sub" style="margin:2px 0 0">Bireysel, aile ve iş notların</p></div>
     <button class="btn" type="button" data-newnote="1"><span class="ms">add</span>Not ekle</button></div>
   <div class="chips sec">${chips.map(([k,v])=>`<button type="button" class="chip ${S.nf===k?"dark":"out"}" data-nf="${k}">${v} (${count(k)})</button>`).join("")}</div>
   <label class="nsearch" style="margin-top:8px"><span class="ms muted" style="font-size:18px">search</span><span style="position:absolute;width:1px;height:1px;overflow:hidden">Notlarda ara</span><input id="nq" type="search" value="${esc(S.nq||"")}" placeholder="Notlarda veya madde etiketlerinde ara…" autocomplete="off"></label>
   <div class="stack sec">${l.length?l.map(n=>`<button type="button" class="card note" data-note="${esc(n.id)}">
       <div class="row"><span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="tag" style="max-width:none">${esc(n.tag||KINDS[n.kind]||"Not")}</span><span class="when">${nDate(n.updatedAt)}</span></span>${n.pri==="acil"?'<span class="tag" style="max-width:none;background:var(--red);color:#fff">Acil</span>':'<span class="when">Rutin</span>'}</div>
       <h2>${esc(n.title||"Başlıksız not")}</h2>${n.body?`<p>${esc(n.body)}</p>`:""}
-      <div class="nf"><span><span class="ms">${n.kind==="radar"?"explore":n.kind==="saha"?"straighten":"menu_book"}</span>${esc(KINDS[n.kind]||"Not")}</span><span>${n.att&&n.att.length?`<span class="ms">attach_file</span>${n.att.length} ek`:""}${n.src?" "+esc(n.src):""}</span></div></button>`).join("")
-    :`<div class="card empty"><span class="ms">edit_note</span><p class="h2" style="margin-top:8px">${notes.length?"Eşleşen not yok":"Henüz not yok"}</p><p class="sub">${notes.length?"Aramayı ya da filtreyi değiştir.":"Saha tespitlerini, danışan görüşmelerini ve mevzuat işaretlerini buraya yaz."}</p></div>`}</div>`;
+      <div class="nf"><span><span class="ms">${KICON[n.kind]||"edit_note"}</span>${esc(KINDS[n.kind]||"Not")}</span><span>${n.att&&n.att.length?`<span class="ms">attach_file</span>${n.att.length} ek`:""}${n.src?" "+esc(n.src):""}</span></div></button>`).join("")
+    :`<div class="card empty"><span class="ms">edit_note</span><p class="h2" style="margin-top:8px">${notes.length?"Eşleşen not yok":"Henüz not yok"}</p><p class="sub">${notes.length?"Aramayı ya da filtreyi değiştir.":"Bireysel, aile ve iş notlarını buraya yaz."}</p></div>`}</div>`;
 }
 /* ============ Google (Drive + Takvim), yalnızca bu cihazdan ============ */
 const GCID="87213294993-mlaiuhqf86dokjtcv0s1vkv17ldh531t.apps.googleusercontent.com";
@@ -837,7 +838,7 @@ function calLinks(title,details,start,mins,remind){
   return{g,ics}
 }
 function openNote(id,pre){
-  const n=id?notes.find(x=>x.id===id):Object.assign({kind:"yonetmelik",title:"",body:"",tag:""},pre||{});
+  const n=id?notes.find(x=>x.id===id):Object.assign({kind:"is",title:"",body:"",tag:""},pre||{});
   if(!n)return;
   const nid=id||"n"+Date.now();curAtt=[];
   const nextHour=new Date();nextHour.setMinutes(0,0,0);nextHour.setHours(nextHour.getHours()+1);
@@ -845,7 +846,7 @@ function openNote(id,pre){
   $("#nbody").innerHTML=`<h2 class="h3">${id?"Notu düzenle":"Yeni not"}</h2>
   <div class="field"><label>Tür</label><div class="chips" style="margin:0">${Object.entries(KINDS).map(([k,v])=>`<button type="button" class="chip ${n.kind===k?"dark":"out"}" data-k="${k}">${v}</button>`).join("")}</div></div>
   <div class="field"><label for="nt">Başlık</label><input id="nt" value="${esc(n.title||"")}" placeholder="Örn: Kadıköy projesi bodrum iskanı"></div>
-  <div class="field"><label for="nb">Not</label><textarea id="nb" placeholder="Görüşme, tespit ya da yorum…">${esc(n.body||"")}</textarea></div>
+  <div class="field"><label for="nb">Not</label><textarea id="nb" placeholder="Notunu yaz…">${esc(n.body||"")}</textarea></div>
   <div class="nact"><button type="button" class="nbtn" id="ncam"><span class="ms">photo_camera</span>Fotoğraf</button><button type="button" class="nbtn" id="ngal"><span class="ms">image</span>Galeri</button><button type="button" class="nbtn" id="nrec"><span class="ms">mic</span><span class="t">Ses kaydı</span></button><button type="button" class="nbtn" id="ndic" style="display:none"><span class="ms">keyboard_voice</span>Sesle yaz</button></div>
   <input type="file" id="nfc" accept="image/*" capture="environment" hidden><input type="file" id="nfg" accept="image/*" multiple hidden>
   <div id="natt" class="natt"></div>
@@ -1000,7 +1001,7 @@ document.addEventListener("click",e=>{
   if(d.nf){S.nf=d.nf;render(true);return}
   if(d.newnote){openNote();return}
   if(d.note){openNote(d.note);return}
-  if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"radar",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
+  if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"is",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
   if(d.h){const h=yhist.find(x=>x.id===d.h);if(h&&!ybusy){yconv=d.h;ychat=(h.messages||[]).map(m=>({...m}));ydraw();window.scrollTo(0,0)}return}
   if(d.g){if(d.g==="on"){gToken(true).then(()=>{toast("Google bağlandı");render(true)},e=>toast(e.message||"Bağlanamadı"))}else{try{if(gtok&&window.google)google.accounts.oauth2.revoke(gtok)}catch(e){}gtok=null;CFG.set("gon","0");CFG.set("gfolder","");toast("Google bağlantısı kaldırıldı");render(true)}return}
   if(d.tgl==="gauto"){CFG.set("gauto",CFG.get("gauto")==="1"?"0":"1");render(true);return}
