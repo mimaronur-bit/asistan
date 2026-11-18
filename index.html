@@ -176,6 +176,9 @@ h1.hl{font:400 30px/38px var(--serif);letter-spacing:-.01em;margin:4px 0 0;text-
 .hrow .ms{font-size:18px;color:var(--mute)}
 .pop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:18px}
 .tgl{width:100%;display:flex;align-items:center;gap:10px;height:44px;border:0;background:none;padding:0;font:600 13px/16px var(--sans);color:var(--mute);text-align:left}.tgl .ms{font-size:30px}.tgl.on{color:var(--red)}
+.bsec{margin-top:10px}.blist{margin:4px 0 0;padding-left:18px;font-size:13px;line-height:19px;color:var(--ink)}.blist li{margin:2px 0}
+.degc{display:flex;align-items:center;gap:12px;width:100%;text-align:left}
+.dold,.dnew{margin-top:8px;padding:8px 10px;border-radius:10px;font-size:12.5px;line-height:18px}.dold{background:var(--high);color:var(--mute)}.dnew{background:#FBECEA;color:var(--ink)}.dold .eyebrow,.dnew .eyebrow{display:block;margin-bottom:2px}
 .yseg{display:flex;gap:4px;padding:4px;background:var(--high);border-radius:14px;margin-bottom:8px}
 .yseg button{flex:1;height:40px;border:0;border-radius:10px;background:none;display:flex;align-items:center;justify-content:center;gap:6px;font:600 13px/16px var(--sans);color:var(--mute)}
 .yseg button.on{background:var(--card);color:var(--red);box-shadow:0 1px 4px rgba(42,36,35,.08)}.yseg small{font-weight:500;font-size:10px;color:var(--mute)}
@@ -334,7 +337,7 @@ async function copy(t){try{await navigator.clipboard.writeText(t);toast("Kopyala
 
 /* ============ İçerik: gizli GitHub deposundan oku, cihazda sakla ============ */
 let cache={};                 // path -> {sha,text}
-let items=[],finans=[],rules="",index="",list="",articles=[];
+let items=[],finans=[],rules="",index="",list="",articles=[],bugun=null,degs=[];
 let loaded=false,statusText="İçerik yükleniyor…",syncing=false;
 async function gh(path,raw){
   const r=await fetch("https://api.github.com/repos/"+CFG.get("repo")+path,{headers:{Authorization:"Bearer "+CFG.get("gh"),Accept:raw?"application/vnd.github.raw+json":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});
@@ -343,6 +346,8 @@ async function gh(path,raw){
 }
 const isRadar=p=>/^(radar\/)?raporlar\/.+\.md$/.test(p);
 const isSrc=p=>/^kaynaklar\/.+\.md$/.test(p);
+const isBugun=p=>/^bugun\/.+\.md$/.test(p);
+const isDeg=p=>/^degisiklikler\/.+\.md$/.test(p);
 let syncP=null;
 function sync(){if(syncing)return syncP;syncP=sync0();return syncP}
 async function sync0(){
@@ -351,7 +356,7 @@ async function sync0(){
   syncing=true;$("#refresh").disabled=true;
   try{
     const tree=await gh("/git/trees/HEAD?recursive=1");
-    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)));
+    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)||isBugun(e.path)||isDeg(e.path)));
     const todo=want.filter(e=>!cache[e.path]||cache[e.path].sha!==e.sha);
     let i=0,fails=0;
     await Promise.all(Array.from({length:6},async()=>{while(i<todo.length){const e=todo[i++];try{const text=await gh("/contents/"+e.path.split("/").map(encodeURIComponent).join("/"),true);cache[e.path]={sha:e.sha,text}}catch(err){fails++}}}));
@@ -379,6 +384,14 @@ function parseReport(name,text){
   }
   return out;
 }
+function parseBugun(t){const upd=(t.match(/^Güncelleme:\s*(.+)$/m)||[,""])[1];const secs=[];
+  for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const lines=b.split("\n").slice(1).map(l=>l.replace(/^\s*[-*]\s*/,"").trim()).filter(Boolean);if(lines.length)secs.push({h:h[1].trim(),lines})}
+  return{upd,secs}}
+const fd=(b,n)=>{const m=b.match(new RegExp("^\\*\\*"+n+":\\*\\*\\s*([\\s\\S]*?)(?=\\n\\*\\*[^*\\n]+:\\*\\*|$)","m"));return m?m[1].trim():""};
+function parseDeg(path,t){const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[1],out=[];
+  for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const [code,...r]=h[1].split(/\s+[—–-]\s+/);
+    out.push({date,code:code.trim(),name:r.join(" — ").trim(),rg:fd(b,"Resmi Gazete"),mad:fd(b,"Etkilenen maddeler"),ne:fd(b,"Ne değişti"),eski:fd(b,"Eski"),yeni:fd(b,"Yeni"),kaynak:fd(b,"Kaynak")})}
+  return out}
 function parseSources(t){const s={};for(const l of t.split("\n")){const m=l.match(/^\|\s*([A-Z0-9]{2,10})\s*\|\s*([^|]+?)\s*\|/);if(m&&m[1]!=="Kod")s[m[1]]={code:m[1],name:m[2],count:0}}return s}
 function parseFile(path,text){
   const byName={};Object.values(sources).forEach(s=>byName[s.name]=s.code);
@@ -402,6 +415,8 @@ function buildAll(){
   list=k("KAYNAKLAR.md")?k("KAYNAKLAR.md").text:"";index=k("MADDE-DIZINI.md")?k("MADDE-DIZINI.md").text:"";rules=k("DANISMAN-KURALLARI.md")?k("DANISMAN-KURALLARI.md").text:"";
   sources=parseSources(list);articles=[];
   for(const p of paths){if(!isSrc(p))continue;const rel=p.slice("kaynaklar/".length);if(rel.includes("/")&&!/notlar\.md$/.test(rel))parseFile(p,cache[p].text)}
+  const bp=paths.filter(isBugun)[0];bugun=bp?parseBugun(cache[bp].text):null;
+  degs=[];for(const p of paths)if(isDeg(p))degs.push(...parseDeg(p,cache[p].text));degs.sort((a,b)=>b.date.localeCompare(a.date));
   loaded=Object.keys(cache).length>0;
 }
 
@@ -449,6 +464,10 @@ function vHome(){
   const f=finans[0],top=feedItems()[0];
   const topics=[...new Set(items.map(i=>i.topic))].slice(0,3);
   const setup=(!(CFG.get("repo")&&CFG.get("gh")))?`<article class="card setup sec"><div class="row"><span class="badge">Kurulum</span></div><h3 class="h2" style="margin-top:8px">${!cfgGit()?"İçeriğini bağla":"Soru sormayı aç"}</h3><p class="txt">${!cfgGit()?"Radar raporları ve yönetmelik maddeleri için gizli GitHub deposunu ve anahtarını gir.":"Danışmana ve radara soru sorabilmek için Claude API anahtarını gir."}</p><div style="margin-top:12px"><button class="btn" type="button" data-go="ayar">Ayarlar'a git<span class="ms">arrow_forward</span></button></div></article>`:"";
+  const todayCard=bugun&&bugun.secs.length?`<article class="card sec">
+      <div class="row" style="margin-bottom:8px"><span class="badge">Bugün</span><span class="when"><span class="ms">schedule</span>${esc(bugun.upd||"")}</span></div>
+      ${bugun.secs.map(sc=>`<div class="bsec"><span class="eyebrow">${esc(sc.h)}</span><ul class="blist">${sc.lines.slice(0,6).map(l=>`<li>${plain(l)}</li>`).join("")}</ul>${sc.lines.length>6?`<span class="sub">+${sc.lines.length-6} daha</span>`:""}</div>`).join("")}</article>`:"";
+  const degCard=degs.length?`<button class="card sec degc" type="button" data-ymode="deg" data-go="yonetmelik"><span class="ibox"><span class="ms">gavel</span></span><span style="flex:1;text-align:left"><span class="h2" style="display:block">Mevzuat değişiklikleri</span><span class="sub" style="display:block;margin-top:2px">${esc(degs[0].code)}: ${esc((degs[0].ne||"").slice(0,70))} · ${trDate(degs[0].date)}</span></span><span class="ms">chevron_right</span></button>`:"";
   let feat;
   if(top){const what=field(top.body,["Ne oldu","Ne değişti"])||top.body.slice(0,300);
     feat=`<article class="card">
@@ -475,6 +494,7 @@ function vHome(){
       <span><span class="h2" style="display:block">Yönetmelikler</span><span class="sub" style="display:block;margin-top:4px">Madde ara, danışmana sor</span></span></button>
   </section>
   ${setup}
+  ${todayCard}${degCard}
   <section class="sec">${feat}</section>
   <section class="sec lg"><div class="row" style="margin-bottom:8px"><span class="eyebrow">Hızlı erişim</span></div>
     <div class="chips">
@@ -596,7 +616,7 @@ const YTOOLS=[
      for(const a of articles){if(!ysel.has(a.code)||(kod&&a.code!==kod))continue;const t=norm(a.title+" "+a.body);if(terms.every(w=>t.includes(w))){const i=t.indexOf(terms[0]);hits.push(`${a.code} ${a.madde}${a.title?" – "+a.title:""}: …${a.body.slice(Math.max(0,i-120),i+220).replace(/\n+/g," ")}…`)}}
      return hits.length?hits.slice(0,20).join("\n")+(hits.length>20?`\n(+${hits.length-20} madde daha; aramayı daralt)`:""):"Eşleşme yok."}}
 ];
-let ymode=(()=>{try{return localStorage.getItem("ymode")=="sor"?"sor":"ara"}catch(e){return"ara"}})(),ysq="";
+let ymode=(()=>{try{return ["sor","deg"].includes(localStorage.getItem("ymode"))?localStorage.getItem("ymode"):"ara"}catch(e){return"ara"}})(),ysq="";
 let ysel=new Set((()=>{try{return JSON.parse(localStorage.getItem("ysel")||"[]")}catch(e){return[]}})()),yopen=false;
 const ysave2=()=>{try{localStorage.setItem("ysel",JSON.stringify([...ysel]))}catch(e){}};
 function ysrcDraw(){
@@ -604,7 +624,8 @@ function ysrcDraw(){
   const codes=Object.keys(sources).filter(c=>sources[c].count>0);
   for(const c of [...ysel])if(!codes.includes(c))ysel.delete(c);
   const lab=ysel.size?[...ysel].join(", "):(ymode==="ara"?"Tüm yönetmelikler":"Yönetmelik seç");
-  const seg=`<div class="yseg"><button type="button" class="${ymode==="ara"?"on":""}" data-ymode="ara"><span class="ms">search</span>Ara <small>ücretsiz</small></button><button type="button" class="${ymode==="sor"?"on":""}" data-ymode="sor"><span class="ms">gavel</span>Danışmana sor</button></div>`;
+  const seg=`<div class="yseg"><button type="button" class="${ymode==="ara"?"on":""}" data-ymode="ara"><span class="ms">search</span>Ara</button><button type="button" class="${ymode==="deg"?"on":""}" data-ymode="deg"><span class="ms">notifications</span>Değişiklik${degs.length?` <small>${degs.length}</small>`:""}</button><button type="button" class="${ymode==="sor"?"on":""}" data-ymode="sor"><span class="ms">gavel</span>Sor</button></div>`;
+  if(ymode==="deg"){el.innerHTML=seg;return}
   el.innerHTML=seg+`<button class="ydd${ysel.size||ymode==="ara"?"":" warn"}" type="button" data-yopen="1" aria-expanded="${yopen}"><span class="ms">menu_book</span><span class="l">${esc(lab)}</span><span class="ms">${yopen?"expand_less":"expand_more"}</span></button>`+
    (yopen?`<div class="ypanel">${codes.map(c=>`<button class="yopt${ysel.has(c)?" on":""}" type="button" data-ysel="${esc(c)}"><span class="ms">${ysel.has(c)?"check_box":"check_box_outline_blank"}</span><span class="n">${esc(sources[c].name)}</span><span class="c">${sources[c].count}</span></button>`).join("")}${codes.length?`<div class="yfoot"><button class="yopt" type="button" data-ysel="*">Tümünü seç</button><button class="yopt" type="button" data-ysel="-">Temizle</button></div>`:'<p class="hint">Kaynaklar yüklenince burada görünür.</p>'}</div>`:"");
 }
@@ -657,7 +678,16 @@ function ydraw(){
   ysrcDraw();
   const out=$("#yout");if(!out)return;
   $("#ysend").disabled=ybusy;
+  $("#ybar").style.display=ymode==="deg"?"none":"block";
   $("#yq").placeholder=ymode==="ara"?"Madde ara: kelime ya da 'PAIY 23'…":"Yönetmelik sorusu yazın…";
+  if(ymode==="deg"){
+    out.innerHTML=!degs.length?`<section class="hello"><h1>Değişiklik yok</h1><p>Mevzuat değişiklik takibi çalıştığında yeni değişiklikler burada listelenir.</p></section>`:`<div class="sres" style="margin-top:12px">${degs.map(g=>`<article class="card dcard"><div class="row"><span class="badge">${esc(g.code)}</span><span class="when"><span class="ms">event</span>${trDate(g.date)}${g.rg?" · RG "+esc(g.rg):""}</span></div>
+      ${g.name?`<p class="sub" style="margin:6px 0 0">${esc(g.name)}</p>`:""}
+      <p class="txt" style="margin:8px 0 0">${plain(g.ne||"")}</p>
+      ${g.mad?`<p class="txt" style="margin:8px 0 0"><b>Etkilenen:</b> ${linkRefs(esc(g.mad))}</p>`:""}
+      ${g.eski?`<div class="dold"><span class="eyebrow">Eski</span>${plain(g.eski)}</div>`:""}${g.yeni?`<div class="dnew"><span class="eyebrow">Yeni</span>${plain(g.yeni)}</div>`:""}
+      ${/^https?:/.test(g.kaynak)?`<p style="margin:8px 0 0"><a class="ref" href="${esc(g.kaynak)}" target="_blank" rel="noopener">Resmi Gazete kaydı</a></p>`:""}</article>`).join("")}</div>`;
+    return}
   if(ymode==="ara"){
     const res=ysq?rank(ysq,true):[];
     out.innerHTML=!ysq?`<section class="hello"><h1>Madde ara</h1><p>Yönetmelik maddelerinde kelimeyle ya da "PAIY 23" gibi doğrudan madde numarasıyla ara. Bu ücretsizdir ve internetsiz de çalışır.</p><span class="srcs"><i></i>${articles.length?Object.keys(sources).length+" kaynak · "+articles.length+" madde":esc(statusText)}</span></section><div class="pop"><span class="sub" style="margin-right:2px">Örnek:</span>${["çekme mesafesi","bodrum kat","otopark","PAIY 23"].map(p=>`<button class="pchip" type="button" data-sq="${esc(p)}">${esc(p)}</button>`).join("")}</div>`
@@ -813,7 +843,7 @@ document.addEventListener("click",e=>{
   const t=e.target.closest("button");if(!t)return;
   const d=t.dataset;
   if(t.classList.contains("ref")){openArticle(d.c,d.m);return}
-  if(d.go){go(d.go,d.go==="radar"?{tab:d.tab||S.tab}:{});return}
+  if(d.go){if(d.ymode)ymode=d.ymode;go(d.go,d.go==="radar"?{tab:d.tab||S.tab}:{});return}
   if(d.tab){S.tab=d.tab;S.topic=null;render();return}
   if(d.p!==undefined){S.profile=d.p;render(true);return}
   if(d.f!==undefined){S.fi=+d.f;render(true);return}
