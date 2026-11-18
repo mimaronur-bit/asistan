@@ -256,6 +256,10 @@ nav.tab .in{max-width:520px;margin:0 auto;height:64px;display:flex;justify-conte
 nav.tab button{border:0;background:transparent;min-width:64px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--mute);font:600 11px/14px var(--sans);position:relative}
 nav.tab .on{color:var(--red)}
 nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--red)}
+.menubg{position:fixed;inset:0;z-index:60;display:none}.menubg.open{display:block}
+.menu{position:absolute;top:calc(env(safe-area-inset-top) + 56px);right:12px;min-width:230px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(32,26,25,.18);padding:6px;display:flex;flex-direction:column}
+.menu button{border:0;background:transparent;display:flex;align-items:center;gap:12px;min-height:48px;padding:0 12px;border-radius:12px;color:var(--ink);font:600 15px/20px var(--sans);text-align:left}
+.menu button:active{background:var(--tint)}.menu button .ms{color:var(--red)}
 </style>
 </head>
 <body>
@@ -265,10 +269,16 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
     <div><b>Asistan</b><small id="crumb">Ana Sayfa</small></div>
   </div>
   <div class="tools">
+    <button class="iconbtn" id="menubtn" type="button" aria-label="Menü" aria-haspopup="true"><span class="ms">menu</span></button>
     <button class="iconbtn" id="settings" type="button" aria-label="Ayarlar"><span class="ms">settings</span></button>
     <button class="iconbtn red" id="refresh" type="button" aria-label="İçeriği yenile"><span class="ms" style="font-size:19px">refresh</span></button>
   </div>
 </div></header>
+
+<div class="menubg" id="menubg"><div class="menu" role="menu" aria-label="Menü">
+  <button type="button" role="menuitem" data-go="yonetmelik"><span class="ms">menu_book</span>Yönetmelikler</button>
+  <button type="button" role="menuitem" data-go="yonetmelik" data-ymode="deg"><span class="ms">gavel</span>Mevzuat değişiklikleri</button>
+</div></div>
 
 <main class="wrap" id="view"></main>
 
@@ -282,7 +292,6 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 <nav class="tab" aria-label="Bölümler"><div class="in">
   <button type="button" data-go="home" class="on"><span class="ms">home</span>Ana sayfa</button>
   <button type="button" data-go="radar"><span class="ms">explore</span>Radar</button>
-  <button type="button" data-go="yonetmelik"><span class="ms">menu_book</span>Yönetmelik</button>
   <button type="button" data-go="notes"><span class="ms">edit_note</span>Notlar</button>
 </div></nav>
 
@@ -492,13 +501,10 @@ function vHome(){
     <label for="hq" style="position:absolute;width:1px;height:1px;overflow:hidden">Radara sor</label>
     <input id="hq" type="text" placeholder="Radara sor…" autocomplete="off" enterkeyhint="send">
     <button class="iconbtn soft" style="width:40px;height:40px" type="submit" aria-label="Sor"><span class="ms" style="font-size:19px">arrow_upward</span></button></form>
-  <section class="grid2 sec" aria-label="Bölümler">
-    <button class="card tile" type="button" data-go="radar">
+  <section class="sec" aria-label="Bölümler">
+    <button class="card tile" type="button" data-go="radar" style="width:100%;min-height:120px">
       <span class="ibox"><span class="ms">explore</span></span>
       <span><span class="h2" style="display:block">Sektörel Radar</span><span class="sub" style="display:block;margin-top:4px">${f?"Günün analizi hazır · "+trDate(f.date):loaded?items.length+" gelişme":"Yükleniyor…"}</span></span></button>
-    <button class="card tile" type="button" data-go="yonetmelik">
-      <span class="ibox"><span class="ms">menu_book</span></span>
-      <span><span class="h2" style="display:block">Yönetmelikler</span><span class="sub" style="display:block;margin-top:4px">Madde ara, danışmana sor</span></span></button>
   </section>
   ${setup}
   ${todayCard}${degCard}
@@ -507,7 +513,6 @@ function vHome(){
     <div class="chips">
       <button class="chip on" type="button" data-go="radar" data-tab="ozet"><span class="ms">insights</span>Günün analizi</button>
       ${topics.map(t=>`<button class="chip" type="button" data-topic="${esc(t)}">${esc(t)}</button>`).join("")}
-      <button class="chip" type="button" data-go="yonetmelik"><span class="ms">menu_book</span>Yönetmeliğe sor</button>
     </div></section>`;
 }
 
@@ -968,6 +973,7 @@ function render(keepScroll){
   const v=$("#view");
   const item=S.item&&S.view==="radar"||S.item&&S.view==="home"?S.item:null;
   $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar"})[S.view];
+  $("#menubtn").style.background=S.view==="yonetmelik"?"var(--tint)":"";$("#menubtn").style.color=S.view==="yonetmelik"?"var(--red)":"";
   document.querySelectorAll("nav.tab [data-go]").forEach(b=>b.classList.toggle("on",b.dataset.go===S.view));
   const y=window.scrollY;
   const yon=S.view==="yonetmelik";
@@ -1018,6 +1024,8 @@ document.addEventListener("click",e=>{
 });
 $("#refresh").onclick=()=>{statusText="Yenileniyor…";render(true);sync()};
 $("#settings").onclick=()=>go("ayar");
+$("#menubtn").onclick=()=>$("#menubg").classList.add("open");
+$("#menubg").addEventListener("click",()=>$("#menubg").classList.remove("open"));
 window.addEventListener("hashchange",()=>{fromHash();S.item=null;render()});
 
 /* ============ Açılış ============ */
