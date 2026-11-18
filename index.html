@@ -767,6 +767,53 @@ function vNotes(){
       <div class="nf"><span><span class="ms">${n.kind==="radar"?"explore":n.kind==="saha"?"straighten":"menu_book"}</span>${esc(KINDS[n.kind]||"Not")}</span><span>${n.att&&n.att.length?`<span class="ms">attach_file</span>${n.att.length} ek`:""}${n.src?" "+esc(n.src):""}</span></div></button>`).join("")
     :`<div class="card empty"><span class="ms">edit_note</span><p class="h2" style="margin-top:8px">${notes.length?"Eşleşen not yok":"Henüz not yok"}</p><p class="sub">${notes.length?"Aramayı ya da filtreyi değiştir.":"Saha tespitlerini, danışan görüşmelerini ve mevzuat işaretlerini buraya yaz."}</p></div>`}</div>`;
 }
+/* ============ Google (Drive + Takvim), yalnızca bu cihazdan ============ */
+const GCID="87213294993-mlaiuhqf86dokjtcv0s1vkv17ldh531t.apps.googleusercontent.com";
+const GSCOPE="https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.events";
+let gtok=null,gexp=0;
+function loadGsi(){return new Promise((res,rej)=>{if(window.google&&google.accounts&&google.accounts.oauth2)return res();const s=document.createElement("script");s.src="https://accounts.google.com/gsi/client";s.onload=res;s.onerror=()=>rej(new Error("Google yüklenemedi, internet bağlantını kontrol et"));document.head.appendChild(s)})}
+if(localStorage.getItem("as_gon")==="1")loadGsi().catch(()=>{});
+const gOn=()=>CFG.get("gon")==="1";
+function gToken(interactive){return new Promise(async(res,rej)=>{
+  if(gtok&&Date.now()<gexp-60000)return res(gtok);
+  try{await loadGsi()}catch(e){return rej(e)}
+  const c=google.accounts.oauth2.initTokenClient({client_id:GCID,scope:GSCOPE,prompt:interactive?"consent":"",
+    callback:r=>{if(r.error)return rej(new Error("Google izni verilmedi"));gtok=r.access_token;gexp=Date.now()+(+r.expires_in||3600)*1000;CFG.set("gon","1");res(gtok)},
+    error_callback:e=>rej(new Error(e&&e.type==="popup_closed"?"Google penceresi kapatıldı":"Google bağlantısı kurulamadı"))});
+  c.requestAccessToken();
+})}
+async function gfetch(url,opt={}){
+  const t=await gToken(false);
+  const r=await fetch(url,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});
+  if(r.status===401){gtok=null}
+  if(!r.ok){const e=new Error(r.status===401?"Google oturumu süresi doldu, tekrar dene":r.status===403?"Google bu işlem için izin vermedi":"Google hatası "+r.status);e.status=r.status;throw e}
+  return r}
+async function driveMkdir(name,parent){
+  const meta={name,mimeType:"application/vnd.google-apps.folder"};if(parent)meta.parents=[parent];
+  return (await gfetch("https://www.googleapis.com/drive/v3/files?fields=id",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(meta)})).json()}
+async function driveRoot(){
+  let id=CFG.get("gfolder");
+  if(id){try{const r=await gfetch("https://www.googleapis.com/drive/v3/files/"+id+"?fields=id,trashed");const j=await r.json();if(!j.trashed)return id}catch(e){if(e.status!==404)throw e}}
+  const q=encodeURIComponent("name='Asistan' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const f=await (await gfetch("https://www.googleapis.com/drive/v3/files?q="+q+"&fields=files(id)")).json();
+  id=f.files&&f.files[0]?f.files[0].id:(await driveMkdir("Asistan")).id;
+  CFG.set("gfolder",id);return id}
+async function driveUpload(name,blob,parent){
+  const meta={name,parents:[parent]},b="asb"+Date.now()+Math.random().toString(36).slice(2,6);
+  const body=new Blob(["--"+b+"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"+JSON.stringify(meta)+"\r\n--"+b+"\r\nContent-Type: "+(blob.type||"application/octet-stream")+"\r\n\r\n",blob,"\r\n--"+b+"--"]);
+  return (await gfetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{method:"POST",headers:{"Content-Type":"multipart/related; boundary="+b},body})).json()}
+async function uploadNoteToDrive(title,text,atts){
+  const root=await driveRoot();const d=new Date();
+  const folderName=d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())+" "+(title||"Not").replace(/[\\/:*?"<>|]/g,"").slice(0,60);
+  const sub=await driveMkdir(folderName,root);
+  await driveUpload("not.txt",new Blob([text],{type:"text/plain;charset=utf-8"}),sub.id);
+  for(const a of atts)await driveUpload(a.name,a.blob,sub.id);
+  return folderName}
+async function calInsert(title,details,start,mins,remind){
+  const end=new Date(start.getTime()+mins*6e4);
+  const body={summary:title,description:details,start:{dateTime:start.toISOString(),timeZone:"Europe/Istanbul"},end:{dateTime:end.toISOString(),timeZone:"Europe/Istanbul"},reminders:{useDefault:false,overrides:[{method:"popup",minutes:remind}]}};
+  return (await gfetch("https://www.googleapis.com/calendar/v3/calendars/primary/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})).json()}
+
 let curAtt=[],curUrls=[],mrec=null,mstream=null,mTimer=null;
 function revokeUrls(){curUrls.forEach(u=>URL.revokeObjectURL(u));curUrls=[]}
 const uid=()=>"a"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
@@ -802,12 +849,13 @@ function openNote(id,pre){
   <input type="file" id="nfc" accept="image/*" capture="environment" hidden><input type="file" id="nfg" accept="image/*" multiple hidden>
   <div id="natt" class="natt"></div>
   <div class="field"><label for="ng">Etiket (isteğe bağlı)</label><input id="ng" value="${esc(n.tag||"")}" placeholder="Örn: PAİY Madde 23"></div>
-  <div class="nact"><button type="button" class="nbtn" id="ncal"><span class="ms">event</span>Takvime ekle / hatırlat</button><button type="button" class="nbtn" id="nshare"><span class="ms">ios_share</span>Drive'a kaydet / paylaş</button></div>
+  <div class="nact"><button type="button" class="nbtn" id="ncal"><span class="ms">event</span>Takvime ekle / hatırlat</button><button type="button" class="nbtn" id="ndrive"><span class="ms">cloud_upload</span>Drive'a yükle</button><button type="button" class="nbtn" id="nshare"><span class="ms">ios_share</span>Paylaş</button></div>
   <div id="ncalp" class="calp" hidden>
     <div class="field"><label for="ndt">Ne zaman</label><input id="ndt" type="datetime-local" value="${dtv}"></div>
     <div class="two"><div class="field"><label for="ndur">Süre</label><select id="ndur"><option value="15">15 dk</option><option value="30">30 dk</option><option value="60" selected>1 saat</option><option value="120">2 saat</option></select></div>
     <div class="field"><label for="nrem">Hatırlat</label><select id="nrem"><option value="0">Tam zamanında</option><option value="10" selected>10 dk önce</option><option value="30">30 dk önce</option><option value="60">1 saat önce</option><option value="1440">1 gün önce</option></select></div></div>
-    <div class="sheetrow"><button class="btn big" type="button" id="ngcal"><span class="ms">open_in_new</span>Google Takvim'de aç</button></div>
+    <div class="sheetrow"><button class="btn big" type="button" id="ngapi"><span class="ms">event_available</span>Takvime doğrudan ekle</button></div>
+    <div class="sheetrow" style="margin-top:6px"><button class="btn big sec2" type="button" id="ngcal"><span class="ms">open_in_new</span>Google Takvim'de aç</button></div>
     <div class="sheetrow" style="margin-top:6px"><button class="btn big sec2" type="button" id="nics"><span class="ms">download</span>.ics (hatırlatmalı) indir</button></div>
     <p class="hint">Google Takvim hazır dolu açılır, Kaydet'e basman yeter. .ics dosyası seçilen hatırlatmayı da içerir.</p></div>
   <div class="sheetrow"><button class="btn big sec2" type="button" id="ncancel">Vazgeç</button><button class="btn big" type="button" id="nsave">Kaydet</button></div>
@@ -842,6 +890,12 @@ function openNote(id,pre){
   const evt=()=>{const t=$("#nt").value.trim()||$("#nb").value.trim().slice(0,60)||"Not";const d=new Date($("#ndt").value);if(isNaN(d)){toast("Tarih seç");return null}
     return calLinks(t,$("#nb").value.trim(),d,+$("#ndur").value,+$("#nrem").value)};
   $("#ngcal").onclick=()=>{const l=evt();if(l)window.open(l.g,"_blank","noopener")};
+  $("#ngapi").onclick=async()=>{const l=evt();if(!l)return;const b=$("#ngapi");b.disabled=true;
+    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||$("#nb").value.trim().slice(0,60)||"Not";const ev=await calInsert(t,$("#nb").value.trim(),new Date($("#ndt").value),+$("#ndur").value,+$("#nrem").value);toast("Takvime eklendi");if(ev.htmlLink)b.querySelector(".ms").textContent="check_circle"}
+    catch(e){toast(e.message||"Takvime eklenemedi")}b.disabled=false};
+  $("#ndrive").onclick=async()=>{const b=$("#ndrive");b.disabled=true;
+    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||"Not";const txt=t+"\n\n"+$("#nb").value.trim()+($("#ng").value.trim()?"\n\n"+$("#ng").value.trim():"");const fn=await uploadNoteToDrive(t,txt,curAtt);toast("Drive'a yüklendi: Asistan / "+fn)}
+    catch(e){toast(e.message||"Drive'a yüklenemedi")}b.disabled=false};
   $("#nics").onclick=()=>{const l=evt();if(!l)return;const b=new Blob([l.ics],{type:"text/calendar"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="hatirlatma.ics";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)};
   // paylaş / Drive
   $("#nshare").onclick=async()=>{
@@ -857,7 +911,9 @@ function openNote(id,pre){
     const base=id?notes.find(x=>x.id===id):{};
     if(curAtt.length)await kvSet("att:"+nid,curAtt);else if(id)await kvSet("att:"+nid,[]);
     saveNote({...base,id:nid,createdAt:base.createdAt||Date.now(),kind:sh.dataset.kind,title,body,tag:$("#ng").value.trim(),src:sh.dataset.src||base.src||"",att:curAtt.map(a=>({id:a.id,type:a.type,name:a.name}))});
+    const au=gOn()&&CFG.get("gauto")==="1"?{t:title||"Not",x:(title||"Not")+"\n\n"+body+($("#ng").value.trim()?"\n\n"+$("#ng").value.trim():""),a:curAtt.slice()}:null;
     closeNote();go("notes");toast("Not kaydedildi");
+    if(au)uploadNoteToDrive(au.t,au.x,au.a).then(fn=>toast("Drive'a da yüklendi"),e=>toast(e.message||"Drive'a yüklenemedi"));
   };
   const del=$("#ndel");if(del)del.onclick=()=>{removeNote(id);kvSet("att:"+id,[]);closeNote();render(true);toast("Not silindi")};
 }
@@ -881,6 +937,12 @@ function vAyar(){
     <div class="field"><label for="sai">Claude API anahtarı</label><input id="sai" type="password" value="${esc(CFG.get("claude"))}" placeholder="sk-ant-…" autocomplete="off"></div>
     <button class="tgl${CFG.get("aion")==="1"?" on":""}" type="button" data-tgl="aion"><span class="ms">${CFG.get("aion")==="1"?"toggle_on":"toggle_off"}</span><span class="n">Yapay zekâ soruları ${CFG.get("aion")==="1"?"açık (ücretli)":"kapalı (anahtar saklı)"}</span></button>
     <div class="field"><label for="smodel">Model</label><select id="smodel"><option value="sonnet"${CFG.get("model")!=="haiku"?" selected":""}>Sonnet: daha dikkatli</option><option value="haiku"${CFG.get("model")==="haiku"?" selected":""}>Haiku: çok daha ucuz</option></select></div>
+  </div>
+  <div class="card sec">
+    <div class="eyebrow">Google (Drive ve Takvim)</div>
+    <p class="hint">Notları, fotoğrafları ve sesleri Drive'daki <b>Asistan</b> klasörüne yükler, hatırlatmaları doğrudan Google Takvim'e yazar. Giriş Google'ın kendi penceresinde yapılır, şifren uygulamaya girmez.</p>
+    <div class="sheetrow">${gOn()?`<button class="btn big sec2" type="button" data-g="off"><span class="ms">link_off</span>Google bağlantısını kaldır</button>`:`<button class="btn big" type="button" data-g="on"><span class="ms">link</span>Google ile bağlan</button>`}</div>
+    ${gOn()?`<button class="tgl${CFG.get("gauto")==="1"?" on":""}" type="button" data-tgl="gauto"><span class="ms">${CFG.get("gauto")==="1"?"toggle_on":"toggle_off"}</span><span class="n">Not kaydedince Drive'a da yükle ${CFG.get("gauto")==="1"?"(açık)":"(kapalı)"}</span></button>`:""}
   </div>
   <div class="sheetrow"><button class="btn big" type="button" id="sset">Kaydet ve içeriği çek</button></div>
   <div class="card sec"><div class="eyebrow">Durum</div><p class="txt" style="margin:6px 0 0">${esc(statusText)}${loaded?" · "+Object.keys(cache).length+" dosya, "+articles.length+" madde":""}</p></div>
@@ -937,6 +999,8 @@ document.addEventListener("click",e=>{
   if(d.note){openNote(d.note);return}
   if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"radar",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
   if(d.h){const h=yhist.find(x=>x.id===d.h);if(h&&!ybusy){yconv=d.h;ychat=(h.messages||[]).map(m=>({...m}));ydraw();window.scrollTo(0,0)}return}
+  if(d.g){if(d.g==="on"){gToken(true).then(()=>{toast("Google bağlandı");render(true)},e=>toast(e.message||"Bağlanamadı"))}else{try{if(gtok&&window.google)google.accounts.oauth2.revoke(gtok)}catch(e){}gtok=null;CFG.set("gon","0");CFG.set("gfolder","");toast("Google bağlantısı kaldırıldı");render(true)}return}
+  if(d.tgl==="gauto"){CFG.set("gauto",CFG.get("gauto")==="1"?"0":"1");render(true);return}
   if(d.tgl){const k=d.tgl;if(k==="aion")CFG.set("aion",CFG.get("aion")==="1"?"0":"1");else CFG.set("gitoff",CFG.get("gitoff")==="1"?"0":"1");toast(k==="aion"?(CFG.get("aion")==="1"?"Yapay zekâ soruları açıldı":"Yapay zekâ soruları kapatıldı"):(CFG.get("gitoff")==="1"?"İçerik çekme kapatıldı":"İçerik çekme açıldı"));render(true);if(k==="gitoff"&&CFG.get("gitoff")!=="1")sync();return}
   if(d.ymode){ymode=d.ymode;try{localStorage.setItem("ymode",ymode)}catch(e){}ydraw();return}
   if(d.sq!==undefined){ysq=d.sq;if(d.sq)$("#yq").value=d.sq;else $("#yq").value="";ydraw();window.scrollTo(0,0);return}
