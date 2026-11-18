@@ -786,7 +786,8 @@ async function gfetch(url,opt={}){
   const t=await gToken(false);
   const r=await fetch(url,{...opt,headers:{Authorization:"Bearer "+t,...(opt.headers||{})}});
   if(r.status===401){gtok=null}
-  if(!r.ok){const e=new Error(r.status===401?"Google oturumu süresi doldu, tekrar dene":r.status===403?"Google bu işlem için izin vermedi":"Google hatası "+r.status);e.status=r.status;throw e}
+  if(!r.ok){let d="";try{const j=await r.json();d=(j.error&&(j.error.message||j.error.status))||""}catch(x){}
+    const e=new Error((r.status===401?"Google oturumu süresi doldu, tekrar dene":r.status===403?"Google bu işlem için izin vermedi":"Google hatası "+r.status)+(d?" · "+String(d).slice(0,160):""));e.status=r.status;throw e}
   return r}
 async function driveMkdir(name,parent){
   const meta={name,mimeType:"application/vnd.google-apps.folder"};if(parent)meta.parents=[parent];
@@ -858,6 +859,7 @@ function openNote(id,pre){
     <div class="sheetrow" style="margin-top:6px"><button class="btn big sec2" type="button" id="ngcal"><span class="ms">open_in_new</span>Google Takvim'de aç</button></div>
     <div class="sheetrow" style="margin-top:6px"><button class="btn big sec2" type="button" id="nics"><span class="ms">download</span>.ics (hatırlatmalı) indir</button></div>
     <p class="hint">Google Takvim hazır dolu açılır, Kaydet'e basman yeter. .ics dosyası seçilen hatırlatmayı da içerir.</p></div>
+  <p id="nmsg" class="hint" style="margin:0 0 10px"></p>
   <div class="sheetrow"><button class="btn big sec2" type="button" id="ncancel">Vazgeç</button><button class="btn big" type="button" id="nsave">Kaydet</button></div>
   ${id?'<div class="sheetrow" style="margin-top:6px"><button class="btn big danger" type="button" id="ndel">Notu sil</button></div>':""}`;
   const sh=$("#nsheet");sh.classList.add("open");sh.dataset.kind=n.kind;sh.dataset.src=n.src||"";
@@ -891,11 +893,11 @@ function openNote(id,pre){
     return calLinks(t,$("#nb").value.trim(),d,+$("#ndur").value,+$("#nrem").value)};
   $("#ngcal").onclick=()=>{const l=evt();if(l)window.open(l.g,"_blank","noopener")};
   $("#ngapi").onclick=async()=>{const l=evt();if(!l)return;const b=$("#ngapi");b.disabled=true;
-    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||$("#nb").value.trim().slice(0,60)||"Not";const ev=await calInsert(t,$("#nb").value.trim(),new Date($("#ndt").value),+$("#ndur").value,+$("#nrem").value);toast("Takvime eklendi");if(ev.htmlLink)b.querySelector(".ms").textContent="check_circle"}
-    catch(e){toast(e.message||"Takvime eklenemedi")}b.disabled=false};
+    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||$("#nb").value.trim().slice(0,60)||"Not";const ev=await calInsert(t,$("#nb").value.trim(),new Date($("#ndt").value),+$("#ndur").value,+$("#nrem").value);toast("Takvime eklendi");$("#nmsg").textContent="✓ Takvime eklendi: "+t+", "+new Date($("#ndt").value).toLocaleString("tr-TR",{dateStyle:"medium",timeStyle:"short"});$("#nmsg").style.color="#2e7d32"}
+    catch(e){toast(e.message||"Takvime eklenemedi");$("#nmsg").textContent="✗ "+(e.message||"Takvime eklenemedi");$("#nmsg").style.color="#b3261e"}b.disabled=false};
   $("#ndrive").onclick=async()=>{const b=$("#ndrive");b.disabled=true;
-    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||"Not";const txt=t+"\n\n"+$("#nb").value.trim()+($("#ng").value.trim()?"\n\n"+$("#ng").value.trim():"");const fn=await uploadNoteToDrive(t,txt,curAtt);toast("Drive'a yüklendi: Asistan / "+fn)}
-    catch(e){toast(e.message||"Drive'a yüklenemedi")}b.disabled=false};
+    try{if(!gOn())await gToken(true);const t=$("#nt").value.trim()||"Not";const txt=t+"\n\n"+$("#nb").value.trim()+($("#ng").value.trim()?"\n\n"+$("#ng").value.trim():"");const fn=await uploadNoteToDrive(t,txt,curAtt);toast("Drive'a yüklendi");$("#nmsg").textContent="✓ Drive'a yüklendi: Asistan / "+fn;$("#nmsg").style.color="#2e7d32"}
+    catch(e){toast(e.message||"Drive'a yüklenemedi");$("#nmsg").textContent="✗ "+(e.message||"Drive'a yüklenemedi");$("#nmsg").style.color="#b3261e"}b.disabled=false};
   $("#nics").onclick=()=>{const l=evt();if(!l)return;const b=new Blob([l.ics],{type:"text/calendar"});const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download="hatirlatma.ics";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000)};
   // paylaş / Drive
   $("#nshare").onclick=async()=>{
