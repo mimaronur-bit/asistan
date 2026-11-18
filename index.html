@@ -175,6 +175,14 @@ h1.hl{font:400 30px/38px var(--serif);letter-spacing:-.01em;margin:4px 0 0;text-
 .hrow span.t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .hrow .ms{font-size:18px;color:var(--mute)}
 .pop{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:18px}
+.ysrc{margin-top:12px;position:relative}
+.ydd{width:100%;display:flex;align-items:center;gap:8px;height:48px;padding:0 14px;border:1px solid var(--line);background:var(--card);border-radius:14px;font:600 14px/20px var(--sans);color:var(--ink);text-align:left}
+.ydd .l{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ydd.warn{border-color:var(--red);color:var(--red)}
+.ypanel{margin-top:6px;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:6px;box-shadow:0 8px 24px -6px rgba(42,36,35,.12)}
+.yopt{width:100%;display:flex;align-items:center;gap:10px;min-height:44px;padding:0 10px;border:0;background:none;border-radius:10px;font:500 14px/20px var(--sans);color:var(--ink);text-align:left}
+.yopt .n{flex:1}.yopt .c{color:var(--mute);font-size:12px}.yopt.on{background:var(--tint,#FBECEA)}.yopt.on .ms{color:var(--red)}
+.yfoot{display:flex;gap:6px;border-top:1px solid var(--line);margin-top:4px;padding-top:4px}.yfoot .yopt{justify-content:center;font-weight:600;color:var(--red)}
 .pchip{height:32px;border:1px solid var(--line);background:var(--card);border-radius:999px;padding:0 12px;font:600 12px/16px var(--sans);color:var(--ink)}
 .ychat{display:flex;flex-direction:column;gap:14px;margin-top:16px}
 .yq{align-self:flex-end;max-width:86%;background:#352f2e;color:#fff;border-radius:18px 18px 4px 18px;padding:11px 14px;font-size:14px;line-height:20px;white-space:pre-wrap}
@@ -573,20 +581,37 @@ function findArticle(code,madde){const mm=norm(madde.replace(/\s+/g," ").replace
 const YTOOLS=[
   {name:"madde_oku",description:"Bir veya birkaç maddenin tam metnini getirir. Hüküm söylemeden önce ilgili maddeyi mutlaka bununla oku.",
    inputSchema:{type:"object",properties:{maddeler:{type:"array",items:{type:"object",properties:{kod:{type:"string",description:"Kaynak kodu, ör. PAIY"},madde:{type:"string",description:"ör. 'Madde 23', 'Geçici Madde 3', 'Madde 57/A'"}},required:["kod","madde"]}}},required:["maddeler"]},
-   execute({maddeler}){return (maddeler||[]).slice(0,8).map(({kod,madde})=>{const a=findArticle(kod,madde);return a?`[${a.code} ${a.madde}${a.title?" – "+a.title:""}] (${a.bolum})\n${a.body}`:`${kod} ${madde}: bulunamadı.`}).join("\n\n=====\n\n")}},
+   execute({maddeler}){return (maddeler||[]).slice(0,8).map(({kod,madde})=>{if(!ysel.has(kod))return `${kod} ${madde}: bu kaynak seçili değil.`;const a=findArticle(kod,madde);return a?`[${a.code} ${a.madde}${a.title?" – "+a.title:""}] (${a.bolum})\n${a.body}`:`${kod} ${madde}: bulunamadı.`}).join("\n\n=====\n\n")}},
   {name:"metin_ara",description:"Tüm kaynakların madde metinlerinde kelime veya ifade arar; eşleşen maddeleri kısa bir alıntıyla döner. Bir konunun hangi maddelerde, hangi kaynaklarda geçtiğini bulmak ve yönetmelikler arası ilişkileri yakalamak için kullan.",
    inputSchema:{type:"object",properties:{sorgu:{type:"string",description:"Aranacak kelime(ler). Birden çok kelime verilirse hepsini içeren maddeler döner."},kod:{type:"string",description:"İsteğe bağlı: yalnızca bu kaynakta ara"}},required:["sorgu"]},
    execute({sorgu,kod}){const terms=norm(sorgu).split(/\s+/).filter(Boolean);const hits=[];
-     for(const a of articles){if(kod&&a.code!==kod)continue;const t=norm(a.title+" "+a.body);if(terms.every(w=>t.includes(w))){const i=t.indexOf(terms[0]);hits.push(`${a.code} ${a.madde}${a.title?" – "+a.title:""}: …${a.body.slice(Math.max(0,i-120),i+220).replace(/\n+/g," ")}…`)}}
+     for(const a of articles){if(!ysel.has(a.code)||(kod&&a.code!==kod))continue;const t=norm(a.title+" "+a.body);if(terms.every(w=>t.includes(w))){const i=t.indexOf(terms[0]);hits.push(`${a.code} ${a.madde}${a.title?" – "+a.title:""}: …${a.body.slice(Math.max(0,i-120),i+220).replace(/\n+/g," ")}…`)}}
      return hits.length?hits.slice(0,20).join("\n")+(hits.length>20?`\n(+${hits.length-20} madde daha; aramayı daralt)`:""):"Eşleşme yok."}}
 ];
+let ysel=new Set((()=>{try{return JSON.parse(localStorage.getItem("ysel")||"[]")}catch(e){return[]}})()),yopen=false;
+const ysave2=()=>{try{localStorage.setItem("ysel",JSON.stringify([...ysel]))}catch(e){}};
+function ysrcDraw(){
+  const el=$("#ysrc");if(!el)return;
+  const codes=Object.keys(sources).filter(c=>sources[c].count>0);
+  for(const c of [...ysel])if(!codes.includes(c))ysel.delete(c);
+  const lab=ysel.size?[...ysel].join(", "):"Yönetmelik seç";
+  el.innerHTML=`<button class="ydd${ysel.size?"":" warn"}" type="button" data-yopen="1" aria-expanded="${yopen}"><span class="ms">menu_book</span><span class="l">${esc(lab)}</span><span class="ms">${yopen?"expand_less":"expand_more"}</span></button>`+
+   (yopen?`<div class="ypanel">${codes.map(c=>`<button class="yopt${ysel.has(c)?" on":""}" type="button" data-ysel="${esc(c)}"><span class="ms">${ysel.has(c)?"check_box":"check_box_outline_blank"}</span><span class="n">${esc(sources[c].name)}</span><span class="c">${sources[c].count}</span></button>`).join("")}${codes.length?`<div class="yfoot"><button class="yopt" type="button" data-ysel="*">Tümünü seç</button><button class="yopt" type="button" data-ysel="-">Temizle</button></div>`:'<p class="hint">Kaynaklar yüklenince burada görünür.</p>'}</div>`:"");
+}
 const toolLabel={madde_oku:"Madde okunuyor",metin_ara:"Kaynaklarda aranıyor"};
-function ysystem(){return rules+"\n\n---\n\nKAYNAK LİSTESİ:\n"+list+"\n\n---\n\nMADDE DİZİNİ:\n"+index+"\n\n---\n\nARAÇLAR: madde_oku ile maddelerin tam metnini, metin_ara ile tüm kaynaklarda arama yaparsın. Cevapta madde atıflarını her zaman 'KOD Madde N' biçiminde yaz (ör. PAIY Madde 23), Onur bunlara dokunup metni açabiliyor. Alıntıları '>' ile başlayan satırlara yaz."}
+function ysystem(){
+  const sel=[...ysel];
+  const lst=list.split("\n").filter(l=>!/^\|\s*[A-Z0-9]{2,10}\s*\|/.test(l)||sel.some(c=>new RegExp("^\\|\\s*"+c+"\\s*\\|").test(l))||/^\|\s*Kod\s*\|/.test(l)).join("\n");
+  const parts=index.split(/\n(?=## )/);
+  const idx=parts.filter(b=>!b.startsWith("## ")||sel.some(c=>b.split("\n")[0].includes("("+c+")"))).join("\n");
+  return rules+"\n\n---\n\nSEÇİLİ KAYNAKLAR (yalnızca bunlardan cevap ver): "+sel.join(", ")+"\n\nKAYNAK LİSTESİ:\n"+lst+"\n\n---\n\nMADDE DİZİNİ:\n"+idx+"\n\n---\n\nARAÇLAR: madde_oku ile maddelerin tam metnini, metin_ara ile tüm kaynaklarda arama yaparsın. Cevapta madde atıflarını her zaman 'KOD Madde N' biçiminde yaz (ör. PAIY Madde 23), Onur bunlara dokunup metni açabiliyor. Alıntıları '>' ile başlayan satırlara yaz."}
+
 async function yask(q){
   if(ybusy)return;
   if(!cfgAI()){toast("Önce Ayarlar'dan Claude API anahtarını gir");return}
   if(!articles.length){toast("Kaynaklar güncelleniyor…");await sync()}
   if(!articles.length){toast("Yönetmelik kaynakları yüklenmedi: "+statusText+". Ayarlar'ı kontrol et.");return}
+  if(!ysel.size){yopen=true;ysrcDraw();toast("Önce hangi yönetmelik(ler)e sorduğunu seç");return}
   ybusy=true;ychat.push({role:"user",content:q});
   const ans={role:"assistant",content:"",tools:[]};ychat.push(ans);ydraw();toBottom();
   try{
@@ -601,8 +626,9 @@ function ysave(){
   try{localStorage.setItem("ydhist",JSON.stringify(yhist))}catch(e){}
 }
 const POP=["TAKS ve KAKS farkı nedir?","Çekme mesafeleri nasıl belirlenir?","Bodrum kat emsale dahil mi?"];
-function vYon(){return `<div id="yout"></div>`}
+function vYon(){return `<div id="ysrc" class="ysrc"></div><div id="yout"></div>`}
 function ydraw(){
+  ysrcDraw();
   const out=$("#yout");if(!out)return;
   $("#ysend").disabled=ybusy;
   const st=articles.length?Object.keys(sources).length+" kaynak · "+articles.length+" madde":statusText;
@@ -767,6 +793,8 @@ document.addEventListener("click",e=>{
   if(d.note){openNote(d.note);return}
   if(d.addnote!==undefined){const it=items.find(x=>x.id===d.addnote);if(it)openNote(null,{kind:"radar",title:it.title.replace(/\*\*|\[|\]\([^)]*\)/g,""),tag:"Radar",src:it.topic+" · "+trDate(it.date)});return}
   if(d.h){const h=yhist.find(x=>x.id===d.h);if(h&&!ybusy){yconv=d.h;ychat=(h.messages||[]).map(m=>({...m}));ydraw();window.scrollTo(0,0)}return}
+  if(d.yopen){yopen=!yopen;ysrcDraw();return}
+  if(d.ysel!==undefined){const c=d.ysel;if(c==="*")Object.keys(sources).forEach(x=>sources[x].count>0&&ysel.add(x));else if(c==="-")ysel.clear();else ysel.has(c)?ysel.delete(c):ysel.add(c);ysave2();ysrcDraw();ydraw();return}
   if(d.pop){$("#yq").value=d.pop;ygrow();$("#yq").focus();return}
   if(d.newq){if(!ybusy){ychat=[];yconv=null;ydraw();window.scrollTo(0,0)}return}
   if(d.ycp){copy(ychat[+d.ycp].content);return}
