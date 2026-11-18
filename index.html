@@ -762,7 +762,7 @@ function vNotes(){
   <div class="chips sec">${chips.map(([k,v])=>`<button type="button" class="chip ${S.nf===k?"dark":"out"}" data-nf="${k}">${v} (${count(k)})</button>`).join("")}</div>
   <label class="nsearch" style="margin-top:8px"><span class="ms muted" style="font-size:18px">search</span><span style="position:absolute;width:1px;height:1px;overflow:hidden">Notlarda ara</span><input id="nq" type="search" value="${esc(S.nq||"")}" placeholder="Notlarda veya madde etiketlerinde ara…" autocomplete="off"></label>
   <div class="stack sec">${l.length?l.map(n=>`<button type="button" class="card note" data-note="${esc(n.id)}">
-      <div class="row"><span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="tag" style="max-width:none">${esc(n.tag||KINDS[n.kind]||"Not")}</span><span class="when">${nDate(n.updatedAt)}</span></span><span class="ms muted" style="font-size:18px">more_horiz</span></div>
+      <div class="row"><span style="display:flex;align-items:center;gap:8px;min-width:0"><span class="tag" style="max-width:none">${esc(n.tag||KINDS[n.kind]||"Not")}</span><span class="when">${nDate(n.updatedAt)}</span></span>${n.pri==="acil"?'<span class="tag" style="max-width:none;background:var(--red);color:#fff">Acil</span>':'<span class="when">Rutin</span>'}</div>
       <h2>${esc(n.title||"Başlıksız not")}</h2>${n.body?`<p>${esc(n.body)}</p>`:""}
       <div class="nf"><span><span class="ms">${n.kind==="radar"?"explore":n.kind==="saha"?"straighten":"menu_book"}</span>${esc(KINDS[n.kind]||"Not")}</span><span>${n.att&&n.att.length?`<span class="ms">attach_file</span>${n.att.length} ek`:""}${n.src?" "+esc(n.src):""}</span></div></button>`).join("")
     :`<div class="card empty"><span class="ms">edit_note</span><p class="h2" style="margin-top:8px">${notes.length?"Eşleşen not yok":"Henüz not yok"}</p><p class="sub">${notes.length?"Aramayı ya da filtreyi değiştir.":"Saha tespitlerini, danışan görüşmelerini ve mevzuat işaretlerini buraya yaz."}</p></div>`}</div>`;
@@ -849,6 +849,7 @@ function openNote(id,pre){
   <div class="nact"><button type="button" class="nbtn" id="ncam"><span class="ms">photo_camera</span>Fotoğraf</button><button type="button" class="nbtn" id="ngal"><span class="ms">image</span>Galeri</button><button type="button" class="nbtn" id="nrec"><span class="ms">mic</span><span class="t">Ses kaydı</span></button><button type="button" class="nbtn" id="ndic" style="display:none"><span class="ms">keyboard_voice</span>Sesle yaz</button></div>
   <input type="file" id="nfc" accept="image/*" capture="environment" hidden><input type="file" id="nfg" accept="image/*" multiple hidden>
   <div id="natt" class="natt"></div>
+  <div class="field"><label for="npri">Öncelik</label><select id="npri"><option value="rutin"${n.pri!=="acil"?" selected":""}>Rutin</option><option value="acil"${n.pri==="acil"?" selected":""}>Acil</option></select></div>
   <div class="field"><label for="ng">Etiket (isteğe bağlı)</label><input id="ng" value="${esc(n.tag||"")}" placeholder="Örn: PAİY Madde 23"></div>
   <div class="nact"><button type="button" class="nbtn" id="ncal"><span class="ms">event</span>Takvime ekle / hatırlat</button><button type="button" class="nbtn" id="ndrive"><span class="ms">cloud_upload</span>Drive'a yükle</button><button type="button" class="nbtn" id="nshare"><span class="ms">ios_share</span>Paylaş</button></div>
   <div id="ncalp" class="calp" hidden>
@@ -912,7 +913,7 @@ function openNote(id,pre){
     if(!title&&!body&&!curAtt.length){toast("Başlık, not ya da ek ekle");return}
     const base=id?notes.find(x=>x.id===id):{};
     if(curAtt.length)await kvSet("att:"+nid,curAtt);else if(id)await kvSet("att:"+nid,[]);
-    saveNote({...base,id:nid,createdAt:base.createdAt||Date.now(),kind:sh.dataset.kind,title,body,tag:$("#ng").value.trim(),src:sh.dataset.src||base.src||"",att:curAtt.map(a=>({id:a.id,type:a.type,name:a.name}))});
+    saveNote({...base,id:nid,createdAt:base.createdAt||Date.now(),kind:sh.dataset.kind,title,body,tag:$("#ng").value.trim(),pri:$("#npri").value,src:sh.dataset.src||base.src||"",att:curAtt.map(a=>({id:a.id,type:a.type,name:a.name}))});
     const au=gOn()&&CFG.get("gauto")==="1"?{t:title||"Not",x:(title||"Not")+"\n\n"+body+($("#ng").value.trim()?"\n\n"+$("#ng").value.trim():""),a:curAtt.slice()}:null;
     closeNote();go("notes");toast("Not kaydedildi");
     if(au)uploadNoteToDrive(au.t,au.x,au.a).then(fn=>toast("Drive'a da yüklendi"),e=>toast(e.message||"Drive'a yüklenemedi"));
