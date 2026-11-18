@@ -326,7 +326,9 @@ async function gh(path,raw){
 }
 const isRadar=p=>/^(radar\/)?raporlar\/.+\.md$/.test(p);
 const isSrc=p=>/^kaynaklar\/.+\.md$/.test(p);
-async function sync(){
+let syncP=null;
+function sync(){if(syncing)return syncP;syncP=sync0();return syncP}
+async function sync0(){
   if(syncing)return;
   if(!cfgGit()){statusText="Kurulum gerekli";buildAll();render(true);return}
   syncing=true;$("#refresh").disabled=true;
@@ -580,7 +582,8 @@ function ysystem(){return rules+"\n\n---\n\nKAYNAK LİSTESİ:\n"+list+"\n\n---\n
 async function yask(q){
   if(ybusy)return;
   if(!cfgAI()){toast("Önce Ayarlar'dan Claude API anahtarını gir");return}
-  if(!articles.length){toast("Yönetmelik kaynakları yüklenmedi. Ayarlar'ı kontrol et.");return}
+  if(!articles.length){toast("Kaynaklar güncelleniyor…");await sync()}
+  if(!articles.length){toast("Yönetmelik kaynakları yüklenmedi: "+statusText+". Ayarlar'ı kontrol et.");return}
   ybusy=true;ychat.push({role:"user",content:q});
   const ans={role:"assistant",content:"",tools:[]};ychat.push(ans);ydraw();toBottom();
   try{
