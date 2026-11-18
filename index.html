@@ -402,7 +402,7 @@ function buildAll(){
 async function callClaude({system,messages,tools,onTool}){
   const key=CFG.get("claude");if(!key){const e=new Error("no_key");e.code="no_key";throw e}
   const msgs=messages.map(m=>({role:m.role,content:m.content}));
-  for(let i=0;i<6;i++){
+  for(let i=0;i<4;i++){
     const body={model:getModel(),max_tokens:2000,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages:msgs};
     if(tools&&tools.length)body.tools=tools.map(t=>({name:t.name,description:t.description,input_schema:t.inputSchema}));
     if(msgs.length>1){const lm=msgs[msgs.length-1];if(Array.isArray(lm.content)&&lm.content.length){const lb=lm.content[lm.content.length-1];if(lb&&lb.type==="tool_result")lb.cache_control={type:"ephemeral"}}}
@@ -603,9 +603,21 @@ function ysystem(){
   const sel=[...ysel];
   const lst=list.split("\n").filter(l=>!/^\|\s*[A-Z0-9]{2,10}\s*\|/.test(l)||sel.some(c=>new RegExp("^\\|\\s*"+c+"\\s*\\|").test(l))||/^\|\s*Kod\s*\|/.test(l)).join("\n");
   const parts=index.split(/\n(?=## )/);
-  const idx=parts.filter(b=>!b.startsWith("## ")||sel.some(c=>b.split("\n")[0].includes("("+c+")"))).join("\n");
+  const idx=parts.filter(b=>!b.startsWith("## ")||sel.some(c=>b.split("\n")[0].includes("("+c+")"))).join("\n").replace(/ · [\w\-\/]+\.md\s*$/gm,"");
   return rules+"\n\n---\n\nSEÇİLİ KAYNAKLAR (yalnızca bunlardan cevap ver): "+sel.join(", ")+"\n\nKAYNAK LİSTESİ:\n"+lst+"\n\n---\n\nMADDE DİZİNİ:\n"+idx+"\n\n---\n\nARAÇLAR: madde_oku ile maddelerin tam metnini, metin_ara ile tüm kaynaklarda arama yaparsın. Cevapta madde atıflarını her zaman 'KOD Madde N' biçiminde yaz (ör. PAIY Madde 23), Onur bunlara dokunup metni açabiliyor. Alıntıları '>' ile başlayan satırlara yaz."}
 
+const STOP=new Set("nedir nasil nelerdir icin ile veya ama gibi daha cok olan olarak bir bu su ve de da mi mu mudur midir hangi kadar sonra once var yok yapi yonetmelik madde maddesi nasildir ise ne".split(" "));
+function retrieve(q,n=6,cap=7000){
+  const terms=[...new Set(norm(q).split(/[^a-z0-9]+/).filter(w=>w.length>2&&!STOP.has(w)).map(w=>w.length>6?w.slice(0,w.length-2):w))];
+  if(!terms.length)return"";
+  const sc=[];
+  for(const a of articles){if(!ysel.has(a.code))continue;const t=norm(a.title),b=norm(a.body);let v=0,hit=0;
+    for(const w of terms){const ti=t.includes(w),bi=b.split(w).length-1;if(ti||bi)hit++;v+=(ti?5:0)+Math.min(bi,4)}
+    if(hit)sc.push([v*hit,a])}
+  sc.sort((x,y)=>y[0]-x[0]);
+  let out="",used=0;
+  for(const [,a] of sc.slice(0,n)){const t=`[${a.code} ${a.madde}${a.title?" – "+a.title:""}]\n${a.body}`.slice(0,2400);if(used+t.length>cap)break;out+=t+"\n\n=====\n\n";used+=t.length}
+  return out}
 async function yask(q){
   if(ybusy)return;
   if(!cfgAI()){toast("Önce Ayarlar'dan Claude API anahtarını gir");return}
@@ -615,7 +627,7 @@ async function yask(q){
   ybusy=true;ychat.push({role:"user",content:q});
   const ans={role:"assistant",content:"",tools:[]};ychat.push(ans);ydraw();toBottom();
   try{
-    ans.content=await callClaude({system:ysystem(),tools:YTOOLS,messages:ychat.slice(0,-1).filter(m=>!m.err),onTool:n=>{ans.tools.push(toolLabel[n]||n);ydraw()}});
+    ans.content=await callClaude({system:ysystem(),tools:YTOOLS,messages:(()=>{const h=ychat.slice(0,-1).filter(m=>!m.err).map(m=>({...m}));const ctx=retrieve(q);if(ctx){const l=h[h.length-1];l.content=q+"\n\n[Seçili kaynaklarda otomatik bulunan ilgili maddeler; yeterliyse araç çağırmadan cevapla]\n\n"+ctx}return h})(),onTool:n=>{ans.tools.push(toolLabel[n]||n);ydraw()}});
   }catch(e){ans.err=true;ychat[ychat.length-2].err=true;ans.content=aiErr(e)}
   ybusy=false;ydraw();ysave();
 }
