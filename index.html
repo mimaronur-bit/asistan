@@ -372,7 +372,7 @@ async function copy(t){try{await navigator.clipboard.writeText(t);toast("Kopyala
 
 /* ============ İçerik: gizli GitHub deposundan oku, cihazda sakla ============ */
 let cache={};                 // path -> {sha,text}
-let items=[],finans=[],rules="",index="",list="",articles=[],bugun=null,degs=[],terms=[];
+let items=[],finans=[],rules="",index="",list="",articles=[],bugun=null,degs=[],terms=[],gorevler=[];
 let loaded=false,statusText="İçerik yükleniyor…",syncing=false;
 async function gh(path,raw){
   const r=await fetch("https://api.github.com/repos/"+CFG.get("repo")+path,{headers:{Authorization:"Bearer "+CFG.get("gh"),Accept:raw?"application/vnd.github.raw+json":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});
@@ -383,6 +383,7 @@ const isRadar=p=>/^(radar\/)?raporlar\/.+\.md$/.test(p);
 const isSrc=p=>/^kaynaklar\/.+\.md$/.test(p);
 const isBugun=p=>/^bugun\/.+\.md$/.test(p);
 const isDeg=p=>/^degisiklikler\/.+\.md$/.test(p);
+const isGor=p=>/^gorevler\/.+\.md$/.test(p);
 const isSoz=p=>/^sozluk\/.+\.md$/.test(p);
 let syncP=null;
 function sync(){if(syncing)return syncP;syncP=sync0();return syncP}
@@ -392,7 +393,7 @@ async function sync0(){
   syncing=true;$("#refresh").disabled=true;
   try{
     const tree=await gh("/git/trees/HEAD?recursive=1");
-    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)||isBugun(e.path)||isDeg(e.path)||isSoz(e.path)));
+    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)||isBugun(e.path)||isDeg(e.path)||isSoz(e.path)||isGor(e.path)));
     const todo=want.filter(e=>!cache[e.path]||cache[e.path].sha!==e.sha);
     let i=0,fails=0;
     await Promise.all(Array.from({length:6},async()=>{while(i<todo.length){const e=todo[i++];try{const text=await gh("/contents/"+e.path.split("/").map(encodeURIComponent).join("/"),true);cache[e.path]={sha:e.sha,text}}catch(err){fails++}}}));
@@ -428,6 +429,13 @@ function parseDeg(path,t){const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[
   for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const [code,...r]=h[1].split(/\s+[—–-]\s+/);
     out.push({date,code:code.trim(),name:r.join(" — ").trim(),rg:fd(b,"Resmi Gazete"),mad:fd(b,"Etkilenen maddeler"),ne:fd(b,"Ne değişti"),eski:fd(b,"Eski"),yeni:fd(b,"Yeni"),kaynak:fd(b,"Kaynak")})}
   return out}
+function parseGor(files){const by={};
+  for(const [path,t] of files){const parts=path.split("/").slice(1);const slug=parts.length>1?parts[0]:parts[0].replace(/\.md$/,"").replace(/-?\d{4}-\d{2}-\d{2}/,"");
+    const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[1];const h=t.match(/^#\s+(.+)$/m);
+    const title=h?h[1].trim():slug.replace(/[-_]+/g," ").replace(/^./,c=>c.toLocaleUpperCase("tr"));
+    const body=t.replace(/^#\s.+\n?/,"").trim();
+    const o={path,slug,date,title,body};if(!by[slug]||o.date.localeCompare(by[slug].date)>0||(o.date===by[slug].date&&path>by[slug].path))by[slug]=o}
+  return Object.values(by).sort((a,b)=>b.date.localeCompare(a.date))}
 function parseTerms(files){const m=new Map();
   for(const [path,t] of files.sort((a,b)=>a[0].localeCompare(b[0]))){const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[1];
     for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const term=h[1].trim(),k=norm(term);
@@ -458,6 +466,7 @@ function buildAll(){
   sources=parseSources(list);articles=[];
   for(const p of paths){if(!isSrc(p))continue;const rel=p.slice("kaynaklar/".length);if(rel.includes("/")&&!/notlar\.md$/.test(rel))parseFile(p,cache[p].text)}
   const bp=paths.filter(isBugun)[0];bugun=bp?parseBugun(cache[bp].text):null;
+  gorevler=parseGor(paths.filter(isGor).map(p=>[p,cache[p].text]));
   terms=parseTerms(paths.filter(isSoz).map(p=>[p,cache[p].text]));
   degs=[];for(const p of paths)if(isDeg(p))degs.push(...parseDeg(p,cache[p].text));degs.sort((a,b)=>b.date.localeCompare(a.date));
   loaded=Object.keys(cache).length>0;
@@ -491,8 +500,8 @@ let S={view:"home",tab:"akis",profile:"",topic:null,item:null,fi:0,nf:"all",nq:"
 let notes=[];
 try{notes=JSON.parse(localStorage.getItem("asnotes")||"[]")}catch(e){}
 const chats={};
-const VIEWS=["home","radar","yonetmelik","notes","ayar","sirket","sozluk"];
-const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar",sirket:"sirket",sozluk:"sozluk"};
+const VIEWS=["home","radar","yonetmelik","notes","ayar","sirket","sozluk","gorev"];
+const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar",sirket:"sirket",sozluk:"sozluk",gorev:"gorev"};
 function go(view,extra){Object.assign(S,{view,item:null,topic:null},extra||{});history.replaceState(null,"",HASH[view]?"#"+HASH[view]:location.pathname+location.search);render();window.scrollTo(0,0)}
 function fromHash(){const h=location.hash.slice(1);const k=Object.keys(HASH).find(x=>HASH[x]===h&&h);S.view=k||"home"}
 
@@ -532,6 +541,7 @@ function vHome(){
   <h1 class="hl">${hi}, Onur</h1>
   ${ozet}
   <div class="sec" id="mkcard">${mkHtml()}</div>
+  ${gorCards()}
   ${szCard()}
   <section class="sec" aria-label="Bölümler">
     <button class="card tile" type="button" data-go="radar" style="width:100%;min-height:120px">
@@ -1174,18 +1184,33 @@ function qAnswer(j){const q=qz.qs[qz.i];if(q.pick>=0)return;q.pick=j;const k=nor
   if(j===q.ans){qz.score++;if(qd.miss[k])qd.miss[k]=Math.max(0,qd.miss[k]-1)}else qd.miss[k]=(qd.miss[k]||0)+1;render(true)}
 function qNext(){if(qz.i+1<qz.qs.length){qz.i++;render(true);window.scrollTo(0,0)}else{qz.done=true;qd.last=dayKey(new Date());qd.hist.push({date:qd.last,score:qz.score});qd.hist=qd.hist.slice(-30);qSave();render(true);window.scrollTo(0,0)}}
 
+/* ============ Görevlerim: zamanlanmış görev çıktıları (gorevler/ klasörü) ============ */
+function gorCards(){
+  return gorevler.map(g=>{const txt=g.body.replace(/^#+\s.*$/gm,"").replace(/^\s*[-*]\s+/gm,"• ").replace(/\n{2,}/g,"\n").trim();
+    return `<button class="card sec" type="button" data-gor="${esc(g.path)}" style="width:100%;text-align:left;border:0;display:block">
+    <div class="row" style="margin-bottom:8px"><span class="badge">${esc(g.title)}</span><span class="when"><span class="ms">schedule</span>${ago(g.date)}</span></div>
+    <p class="txt clamp" style="-webkit-line-clamp:5;margin:0">${plain(txt.slice(0,600))}</p>
+    <div class="row" style="margin-top:12px"><span class="when">Zamanlanmış görev</span><span class="btn" style="pointer-events:none">Tamamını oku<span class="ms">arrow_forward</span></span></div></button>`}).join("")}
+function vGorev(){
+  const g=gorevler.find(x=>x.path===S.gp);
+  if(!g)return `<div class="card empty sec"><span class="ms">event_busy</span><p class="sub">Bu görev sonucu bulunamadı.</p><div class="sheetrow" style="margin-top:12px"><button class="btn" type="button" data-go="home">Ana sayfa</button></div></div>`;
+  return `<div class="nhead"><div><h1>${esc(g.title)}</h1><p class="sub" style="margin:2px 0 0">${trDate(g.date)} · Zamanlanmış görev</p></div></div>
+  <article class="card sec"><div class="md">${md(g.body)}</div></article>
+  <div class="sheetrow"><button class="btn big sec2" type="button" data-copy="${esc(g.body)}"><span class="ms">content_copy</span>Kopyala</button></div>
+  <div class="sheetrow" style="margin-top:8px"><button class="btn big" type="button" data-go="home">Ana sayfaya dön</button></div>`}
+
 /* ============ Çizim ve olaylar ============ */
 function render(keepScroll){
   const v=$("#view");
   const item=S.item&&S.view==="radar"||S.item&&S.view==="home"?S.item:null;
-  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar",sirket:"Şirket bilgilerim",sozluk:"Sözlüğüm"})[S.view];
+  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar",sirket:"Şirket bilgilerim",sozluk:"Sözlüğüm",gorev:"Görev sonucu"})[S.view];
   $("#menubtn").style.background=S.view==="yonetmelik"?"var(--tint)":"";$("#menubtn").style.color=S.view==="yonetmelik"?"var(--red)":"";
   document.querySelectorAll("nav.tab [data-go]").forEach(b=>b.classList.toggle("on",b.dataset.go===S.view));
   const y=window.scrollY;
   const yon=S.view==="yonetmelik";
   v.className="wrap"+(yon?" yv":"");
   $("#ybar").style.display=yon?"block":"none";
-  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():S.view==="sirket"?vSirket():S.view==="sozluk"?vSozluk():vHome();
+  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():S.view==="sirket"?vSirket():S.view==="sozluk"?vSozluk():S.view==="gorev"?vGorev():vHome();
   if(keepScroll)window.scrollTo(0,y);
   if(yon)ydraw();
   if(S.view==="ayar")bindAyar();
@@ -1212,6 +1237,7 @@ document.addEventListener("click",e=>{
   if(d.copyart!==undefined){copy(d.copyart);return}
   if(d.deep){ask(d.deep,"");return}
   if(d.sug){const box=t.closest("[data-chat]");ask(box.dataset.chat,d.sug);return}
+  if(d.gor){S.gp=d.gor;go("gorev",{gp:d.gor});return}
   if(d.qstart){qStart();return}
   if(d.qopt!==undefined){qAnswer(+d.qopt);return}
   if(d.qnext){qNext();return}
