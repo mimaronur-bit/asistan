@@ -256,6 +256,7 @@ nav.tab .in{max-width:520px;margin:0 auto;height:64px;display:flex;justify-conte
 nav.tab button{border:0;background:transparent;min-width:64px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--mute);font:600 11px/14px var(--sans);position:relative}
 nav.tab .on{color:var(--red)}
 nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--red)}
+.crow{display:flex;gap:8px;align-items:center}.crow input{flex:1;min-width:0}.cpy{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--red);display:flex;align-items:center;justify-content:center}.cpy:active{background:var(--tint)}
 .menubg{position:fixed;inset:0;z-index:60;display:none}.menubg.open{display:block}
 .menu{position:absolute;top:calc(env(safe-area-inset-top) + 56px);right:12px;min-width:230px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(32,26,25,.18);padding:6px;display:flex;flex-direction:column}
 .menu button{border:0;background:transparent;display:flex;align-items:center;gap:12px;min-height:48px;padding:0 12px;border-radius:12px;color:var(--ink);font:600 15px/20px var(--sans);text-align:left}
@@ -276,6 +277,7 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 </div></header>
 
 <div class="menubg" id="menubg"><div class="menu" role="menu" aria-label="Menü">
+  <button type="button" role="menuitem" data-go="sirket"><span class="ms">apartment</span>Şirket bilgilerim</button>
   <button type="button" role="menuitem" data-go="yonetmelik"><span class="ms">menu_book</span>Yönetmelikler</button>
   <button type="button" role="menuitem" data-go="yonetmelik" data-ymode="deg"><span class="ms">gavel</span>Mevzuat değişiklikleri</button>
 </div></div>
@@ -464,8 +466,8 @@ let S={view:"home",tab:"akis",profile:"",topic:null,item:null,fi:0,nf:"all",nq:"
 let notes=[];
 try{notes=JSON.parse(localStorage.getItem("asnotes")||"[]")}catch(e){}
 const chats={};
-const VIEWS=["home","radar","yonetmelik","notes","ayar"];
-const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar"};
+const VIEWS=["home","radar","yonetmelik","notes","ayar","sirket"];
+const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar",sirket:"sirket"};
 function go(view,extra){Object.assign(S,{view,item:null,topic:null},extra||{});history.replaceState(null,"",HASH[view]?"#"+HASH[view]:location.pathname+location.search);render();window.scrollTo(0,0)}
 function fromHash(){const h=location.hash.slice(1);const k=Object.keys(HASH).find(x=>HASH[x]===h&&h);S.view=k||"home"}
 
@@ -968,21 +970,68 @@ function bindAyar(){
   const b=$("#sbk");if(b)b.onclick=()=>copy(JSON.stringify(notes,null,1));
 }
 
+/* ============ Şirket bilgilerim (yalnızca bu cihazda) ============ */
+let co={unvan:"",vd:"",vno:"",adres:"",tel:"",mail:"",banks:[]};
+try{co=Object.assign(co,JSON.parse(localStorage.getItem("ascompany")||"{}"));if(!Array.isArray(co.banks))co.banks=[]}catch(e){}
+function coSave(){try{localStorage.setItem("ascompany",JSON.stringify(co))}catch(e){toast("Kaydedilemedi, depolama dolu olabilir")}}
+function fmtIban(v){const c=v.replace(/\s+/g,"").toUpperCase();return c.replace(/(.{4})/g,"$1 ").trim()}
+function coText(){
+  const L=[];const add=(k,v)=>{if(v)L.push(k+": "+v)};
+  add("Ünvan",co.unvan);add("Vergi Dairesi",co.vd);add("Vergi No",co.vno);add("Adres",co.adres);add("Telefon",co.tel);add("E-posta",co.mail);
+  co.banks.forEach((b,i)=>{if(!(b.banka||b.iban))return;L.push("");L.push("Banka"+(co.banks.length>1?" "+(i+1):"")+": "+[b.banka,b.sube].filter(Boolean).join(" / "));add("Hesap sahibi",b.sahip);add("IBAN",b.iban)});
+  return L.join("\n");
+}
+function cfield(id,label,val,ph,type,mode){return `<div class="field"><label for="${id}">${label}</label><div class="crow"><input id="${id}" value="${esc(val||"")}" placeholder="${ph}" autocomplete="off"${mode?` inputmode="${mode}"`:""}><button type="button" class="cpy" data-cpy="${id}" aria-label="${label} kopyala"><span class="ms" style="font-size:20px">content_copy</span></button></div></div>`}
+function vSirket(){
+  return `<div class="nhead"><div><h1>Şirket bilgilerim</h1><p class="sub" style="margin:2px 0 0">Bilgiler yalnızca bu telefonda saklanır. Yanındaki simgeyle kopyalarsın.</p></div></div>
+  <div class="card sec"><div class="eyebrow">Şirket</div>
+    ${cfield("cunvan","Şirket ünvanı",co.unvan,"Örn: Demir Mimarlık Ltd. Şti.")}
+    ${cfield("cvd","Vergi dairesi",co.vd,"Örn: Kadıköy")}
+    ${cfield("cvno","Vergi no",co.vno,"10 haneli vergi no","text","numeric")}
+    <div class="field"><label for="cadres">Adres</label><textarea id="cadres" style="height:84px" placeholder="Açık adres">${esc(co.adres||"")}</textarea></div>
+    ${cfield("ctel","Telefon",co.tel,"05xx xxx xx xx","text","tel")}
+    ${cfield("cmail","E-posta",co.mail,"ornek@firma.com")}
+  </div>
+  <div class="eyebrow" style="margin:20px 0 -4px">Banka hesapları</div>
+  ${co.banks.map((b,i)=>`<div class="card sec" data-bank="${i}">
+    <div class="row"><span class="eyebrow">Hesap ${i+1}</span><button type="button" class="iconbtn" data-bdel="${i}" aria-label="Hesabı sil" style="width:36px;height:36px"><span class="ms" style="font-size:20px">delete</span></button></div>
+    ${cfield("bb"+i,"Banka",b.banka,"Örn: Garanti BBVA")}
+    ${cfield("bs"+i,"Şube (isteğe bağlı)",b.sube,"Şube adı veya kodu")}
+    ${cfield("bh"+i,"Hesap sahibi",b.sahip,"Ünvan veya ad soyad")}
+    ${cfield("bi"+i,"IBAN",b.iban,"TR00 0000 0000 0000 0000 0000 00")}
+  </div>`).join("")}
+  <div class="sheetrow" style="margin-top:12px"><button class="btn big sec2" type="button" id="badd"><span class="ms">add</span>Banka hesabı ekle</button></div>
+  <div class="sheetrow" style="margin-top:8px"><button class="btn big" type="button" id="callcp"><span class="ms">content_copy</span>Tümünü kopyala</button></div>
+  <p class="hint" style="margin-top:8px">"Tümünü kopyala" fatura ya da ödeme bilgisi olarak yapıştırılabilir düz metin üretir.</p>`;
+}
+function bindSirket(){
+  const map={cunvan:"unvan",cvd:"vd",cvno:"vno",cadres:"adres",ctel:"tel",cmail:"mail"};
+  Object.entries(map).forEach(([id,k])=>{const el=$("#"+id);if(el)el.oninput=()=>{co[k]=el.value;coSave()}});
+  co.banks.forEach((b,i)=>{[["bb","banka"],["bs","sube"],["bh","sahip"],["bi","iban"]].forEach(([p,k])=>{const el=$("#"+p+i);if(!el)return;
+    el.oninput=()=>{b[k]=el.value;coSave()};
+    if(k==="iban")el.onblur=()=>{el.value=b.iban=fmtIban(el.value);coSave()}})});
+  $("#view").querySelectorAll("[data-cpy]").forEach(btn=>btn.onclick=()=>{const el=$("#"+btn.dataset.cpy);if(el&&el.value)copy(el.value);else toast("Alan boş")});
+  $("#view").querySelectorAll("[data-bdel]").forEach(btn=>btn.onclick=()=>{if(confirm("Bu banka hesabı silinsin mi?")){co.banks.splice(+btn.dataset.bdel,1);coSave();render(true)}});
+  $("#badd").onclick=()=>{co.banks.push({banka:"",sube:"",sahip:co.unvan||"",iban:""});coSave();render(true);const i=co.banks.length-1;const el=$("#bb"+i);if(el)el.focus()};
+  $("#callcp").onclick=()=>{const t=coText();if(t)copy(t);else toast("Önce bilgi gir")};
+}
+
 /* ============ Çizim ve olaylar ============ */
 function render(keepScroll){
   const v=$("#view");
   const item=S.item&&S.view==="radar"||S.item&&S.view==="home"?S.item:null;
-  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar"})[S.view];
+  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar",sirket:"Şirket bilgilerim"})[S.view];
   $("#menubtn").style.background=S.view==="yonetmelik"?"var(--tint)":"";$("#menubtn").style.color=S.view==="yonetmelik"?"var(--red)":"";
   document.querySelectorAll("nav.tab [data-go]").forEach(b=>b.classList.toggle("on",b.dataset.go===S.view));
   const y=window.scrollY;
   const yon=S.view==="yonetmelik";
   v.className="wrap"+(yon?" yv":"");
   $("#ybar").style.display=yon?"block":"none";
-  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():vHome();
+  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():S.view==="sirket"?vSirket():vHome();
   if(keepScroll)window.scrollTo(0,y);
   if(yon)ydraw();
   if(S.view==="ayar")bindAyar();
+  if(S.view==="sirket")bindSirket();
   const nqi=$("#nq");if(nqi)nqi.oninput=()=>{S.nq=nqi.value;const pos=nqi.selectionStart;render(true);const n2=$("#nq");if(n2){n2.focus();n2.setSelectionRange(pos,pos)}};
   const hs=$("#hs");if(hs)hs.onsubmit=e=>{e.preventDefault();const q=$("#hq").value.trim();if(!q)return;go("radar",{tab:"sor"});ask("genel",q)};
   v.querySelectorAll("[data-form]").forEach(f=>{const ta=f.querySelector("textarea");
