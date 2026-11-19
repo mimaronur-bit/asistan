@@ -256,6 +256,14 @@ nav.tab .in{max-width:520px;margin:0 auto;height:64px;display:flex;justify-conte
 nav.tab button{border:0;background:transparent;min-width:64px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:var(--mute);font:600 11px/14px var(--sans);position:relative}
 nav.tab .on{color:var(--red)}
 nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;border-radius:50%;background:var(--red)}
+.mk{background:var(--card);border-radius:20px;box-shadow:var(--sh);padding:14px 14px 12px}
+.mkg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.mkt{background:var(--tint);border-radius:14px;padding:10px 12px;min-width:0}
+.mkt .l{font:600 11px/14px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mute)}
+.mkt .v{font:600 20px/26px var(--serif,serif);color:var(--ink);margin-top:2px;white-space:nowrap}
+.mkt .c{font:600 12px/16px var(--sans);margin-top:1px}.mkt .c.up{color:#1b7f3b}.mkt .c.dn{color:var(--red)}.mkt .c.na{color:var(--mute);font-weight:500}
+.mkh{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.mkh .iconbtn{width:32px;height:32px}.mk.spin .iconbtn .ms{animation:mkspin 1s linear infinite}@keyframes mkspin{to{transform:rotate(360deg)}}
 .crow{display:flex;gap:8px;align-items:center}.crow input{flex:1;min-width:0}.cpy{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--red);display:flex;align-items:center;justify-content:center}.cpy:active{background:var(--tint)}
 .menubg{position:fixed;inset:0;z-index:60;display:none}.menubg.open{display:block}
 .menu{position:absolute;top:calc(env(safe-area-inset-top) + 56px);right:12px;min-width:230px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(32,26,25,.18);padding:6px;display:flex;flex-direction:column}
@@ -499,10 +507,7 @@ function vHome(){
   <div class="greet-row"><span class="eyebrow">${GUNLER[n.getDay()]}, ${n.getDate()} ${AYLAR[n.getMonth()]}</span>
     <span class="pill"><span class="dot"></span>${loaded?items.length+" gelişme":esc(statusText)}</span></div>
   <h1 class="hl">${hi}, Onur</h1>
-  <form class="search sec" id="hs"><span class="ms muted">search</span>
-    <label for="hq" style="position:absolute;width:1px;height:1px;overflow:hidden">Radara sor</label>
-    <input id="hq" type="text" placeholder="Radara sor…" autocomplete="off" enterkeyhint="send">
-    <button class="iconbtn soft" style="width:40px;height:40px" type="submit" aria-label="Sor"><span class="ms" style="font-size:19px">arrow_upward</span></button></form>
+  <div class="sec" id="mkcard">${mkHtml()}</div>
   <section class="sec" aria-label="Bölümler">
     <button class="card tile" type="button" data-go="radar" style="width:100%;min-height:120px">
       <span class="ibox"><span class="ms">explore</span></span>
@@ -1028,6 +1033,62 @@ function bindSirket(){
   $("#view").querySelectorAll("[data-cpy]").forEach(btn=>btn.onclick=()=>{const el=$("#"+btn.dataset.cpy);if(el&&el.value)copy(el.value);else toast("Alan boş")});
 }
 
+/* ============ Piyasalar: dolar, euro, gram altın, BIST 100 (ücretsiz, anahtarsız) ============ */
+const MKDEF=[["usd","Dolar","₺",2],["eur","Euro","₺",2],["gram","Gram altın","₺",0],["bist","BIST 100","",0]];
+let mk={t:0,v:{},err:false},mkBusy=false;
+try{mk=Object.assign(mk,JSON.parse(localStorage.getItem("asmk")||"{}"))}catch(e){}
+let mkHist={};try{mkHist=JSON.parse(localStorage.getItem("asmkhist")||"{}")}catch(e){}
+const dayKey=d=>d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+function mkNum(x){if(typeof x==="number")return isFinite(x)?x:NaN;if(typeof x!=="string")return NaN;let t=x.replace(/[^\d.,-]/g,"");if(t.includes(","))t=t.replace(/\./g,"").replace(",",".");const n=parseFloat(t);return isFinite(n)?n:NaN}
+async function mkJson(url,ms){const c=new AbortController();const tm=setTimeout(()=>c.abort(),ms||8000);try{const r=await fetch(url,{signal:c.signal,cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);return await r.json()}finally{clearTimeout(tm)}}
+function mkPick(j,keyRe,nameRe){for(const [k,o] of Object.entries(j||{})){if(!o||typeof o!=="object")continue;if(keyRe.test(k)||(nameRe&&nameRe.test(String(o.Name||o.name||""))))return o}return null}
+function mkFromTr(o){if(!o)return null;const p=mkNum(o.Selling!==undefined?o.Selling:o.selling!==undefined?o.selling:o.Buying);if(!(p>0))return null;const ch=mkNum(o.Change!==undefined?o.Change:o.change);return{p,ch:isFinite(ch)?ch:null}}
+async function mkFetch(){
+  const out={};
+  try{const j=await mkJson("https://finans.truncgil.com/v4/today.json");
+    out.usd=mkFromTr(mkPick(j,/^USD$/i,/^abd dolar/i));out.eur=mkFromTr(mkPick(j,/^EUR$/i,/^euro$/i));
+    out.gram=mkFromTr(mkPick(j,/^(GRA|GRAM[-_ ]?ALTIN)$/i,/^gram alt/i));out.bist=mkFromTr(mkPick(j,/^(XU100|BIST[-_ ]?100)$/i,/bist\s*100/i))}catch(e){}
+  if(!out.usd||!out.eur||!out.gram){
+    for(const u of ["https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json","https://latest.currency-api.pages.dev/v1/currencies/usd.json"]){
+      try{const j=await mkJson(u);const t=j.usd.try,e=j.usd.eur,x=j.usd.xau;
+        if(!out.usd&&t>0)out.usd={p:t,ch:null};if(!out.eur&&t>0&&e>0)out.eur={p:t/e,ch:null};if(!out.gram&&t>0&&x>0)out.gram={p:t/x/31.1034768,ch:null};break}catch(e){}}}
+  if(!out.bist){
+    const y="https://query1.finance.yahoo.com/v8/finance/chart/XU100.IS?interval=1d&range=1d";
+    for(const u of [y,"https://api.allorigins.win/raw?url="+encodeURIComponent(y)]){
+      try{const m=(await mkJson(u)).chart.result[0].meta;const p=m.regularMarketPrice,pc=m.chartPreviousClose||m.previousClose;
+        if(p>0){out.bist={p,ch:pc>0?(p/pc-1)*100:null};break}}catch(e){}}}
+  return out;
+}
+async function mkLoad(force){
+  if(mkBusy)return;if(!force&&Date.now()-mk.t<120000)return;
+  mkBusy=true;const c=$("#mkcard .mk");if(c)c.classList.add("spin");
+  let out={};try{out=await mkFetch()}catch(e){}
+  const got=Object.keys(out).filter(k=>out[k]);
+  if(got.length){
+    const today=dayKey(new Date()),v=Object.assign({},mk.v);
+    got.forEach(k=>v[k]=Object.assign({},out[k],{t:Date.now()}));
+    mkHist[today]=mkHist[today]||{};got.forEach(k=>mkHist[today][k]=out[k].p);
+    Object.keys(mkHist).sort().slice(0,-8).forEach(k=>delete mkHist[k]);
+    mk={t:Date.now(),v,err:got.length<MKDEF.length};
+    try{localStorage.setItem("asmk",JSON.stringify(mk));localStorage.setItem("asmkhist",JSON.stringify(mkHist))}catch(e){}
+  }else mk.err=true;
+  mkBusy=false;const box=$("#mkcard");if(box)box.innerHTML=mkHtml();
+}
+function mkPrev(k){const today=dayKey(new Date());const d=Object.keys(mkHist).filter(x=>x<today).sort().pop();return d&&mkHist[d][k]>0?mkHist[d][k]:null}
+function mkHtml(){
+  const hm=mk.t?pad2(new Date(mk.t).getHours())+":"+pad2(new Date(mk.t).getMinutes()):"";
+  const tiles=MKDEF.map(([k,l,u,dec])=>{
+    const o=mk.v[k];if(!o)return `<div class="mkt"><div class="l">${l}</div><div class="v">—</div><div class="c na">${mkBusy?"Yükleniyor…":"Alınamadı"}</div></div>`;
+    let ch=o.ch;if(ch==null){const pv=mkPrev(k);if(pv)ch=(o.p/pv-1)*100}
+    const val=o.p.toLocaleString("tr-TR",{minimumFractionDigits:dec,maximumFractionDigits:dec})+(u?" "+u:"");
+    const cs=ch==null?'<div class="c na">&nbsp;</div>':`<div class="c ${ch>=0?"up":"dn"}">${ch>=0?"▲":"▼"} %${Math.abs(ch).toLocaleString("tr-TR",{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`;
+    return `<div class="mkt"><div class="l">${l}</div><div class="v">${val}</div>${cs}</div>`}).join("");
+  return `<div class="mk${mkBusy?" spin":""}"><div class="mkh"><span class="eyebrow">Piyasalar</span><span style="display:flex;align-items:center;gap:6px"><span class="when">${hm?"Güncelleme "+hm:"Henüz güncellenmedi"}</span><button class="iconbtn soft" type="button" data-mkr="1" aria-label="Kurları yenile"><span class="ms" style="font-size:18px">refresh</span></button></span></div>
+  <div class="mkg">${tiles}</div>${mk.err&&mk.t?'<p class="hint" style="margin:8px 0 0">Bazı değerler alınamadı, son bilinen değerler gösteriliyor.</p>':""}<p class="hint" style="margin:8px 0 0">Bilgi amaçlıdır. Veriler gecikmeli olabilir, işlem için bankanın kurunu esas al.</p></div>`;
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)mkLoad(false)});
+setInterval(()=>{if(!document.hidden)mkLoad(false)},300000);
+
 /* ============ Çizim ve olaylar ============ */
 function render(keepScroll){
   const v=$("#view");
@@ -1045,7 +1106,6 @@ function render(keepScroll){
   if(S.view==="ayar")bindAyar();
   if(S.view==="sirket")bindSirket();else{coEdit=false;cod=null}
   const nqi=$("#nq");if(nqi)nqi.oninput=()=>{S.nq=nqi.value;const pos=nqi.selectionStart;render(true);const n2=$("#nq");if(n2){n2.focus();n2.setSelectionRange(pos,pos)}};
-  const hs=$("#hs");if(hs)hs.onsubmit=e=>{e.preventDefault();const q=$("#hq").value.trim();if(!q)return;go("radar",{tab:"sor"});ask("genel",q)};
   v.querySelectorAll("[data-form]").forEach(f=>{const ta=f.querySelector("textarea");
     ta.oninput=()=>{ta.style.height="38px";ta.style.height=Math.min(ta.scrollHeight,140)+"px"};
     ta.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey&&!/Mobi|Android/i.test(navigator.userAgent)){e.preventDefault();f.requestSubmit()}};
@@ -1065,6 +1125,7 @@ document.addEventListener("click",e=>{
   if(d.copyart!==undefined){copy(d.copyart);return}
   if(d.deep){ask(d.deep,"");return}
   if(d.sug){const box=t.closest("[data-chat]");ask(box.dataset.chat,d.sug);return}
+  if(d.mkr){mkLoad(true);return}
   if(d.nf){S.nf=d.nf;render(true);return}
   if(d.newnote){openNote();return}
   if(d.note){openNote(d.note);return}
@@ -1083,7 +1144,7 @@ document.addEventListener("click",e=>{
   if(d.ycp){copy(ychat[+d.ycp].content);return}
   if(t.id==="bk"){if(S.item)S.item=null;else S.topic=null;render();window.scrollTo(0,0);return}
 });
-$("#refresh").onclick=()=>{statusText="Yenileniyor…";render(true);sync()};
+$("#refresh").onclick=()=>{statusText="Yenileniyor…";render(true);sync();mkLoad(true)};
 $("#settings").onclick=()=>go("ayar");
 $("#menubtn").onclick=()=>$("#menubg").classList.add("open");
 $("#menubg").addEventListener("click",()=>$("#menubg").classList.remove("open"));
@@ -1093,6 +1154,7 @@ window.addEventListener("hashchange",()=>{fromHash();S.item=null;render()});
 if("serviceWorker" in navigator&&/^https?:$/.test(location.protocol))navigator.serviceWorker.register("sw.js").catch(()=>{});
 fromHash();
 render();
+mkLoad(true);
 (async()=>{
   cache=(await kvGet("files"))||{};
   if(Object.keys(cache).length){buildAll();statusText="Kayıtlı içerik gösteriliyor";render(true)}
