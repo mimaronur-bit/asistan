@@ -981,39 +981,51 @@ function coText(){
   co.banks.forEach((b,i)=>{if(!(b.banka||b.iban))return;L.push("");L.push("Banka"+(co.banks.length>1?" "+(i+1):"")+": "+[b.banka,b.sube].filter(Boolean).join(" / "));add("Hesap sahibi",b.sahip);add("IBAN",b.iban)});
   return L.join("\n");
 }
-function cfield(id,label,val,ph,type,mode){return `<div class="field"><label for="${id}">${label}</label><div class="crow"><input id="${id}" value="${esc(val||"")}" placeholder="${ph}" autocomplete="off"${mode?` inputmode="${mode}"`:""}><button type="button" class="cpy" data-cpy="${id}" aria-label="${label} kopyala"><span class="ms" style="font-size:20px">content_copy</span></button></div></div>`}
+let coEdit=false,cod=null;
+function cfield(id,label,val,ph,mode){return `<div class="field"><label for="${id}">${label}</label><div class="crow"><input id="${id}" value="${esc(val||"")}" placeholder="${coEdit?ph:"—"}" autocomplete="off"${mode?` inputmode="${mode}"`:""}${coEdit?"":" readonly"}><button type="button" class="cpy" data-cpy="${id}" aria-label="${label} kopyala"><span class="ms" style="font-size:20px">content_copy</span></button></div></div>`}
 function vSirket(){
-  return `<div class="nhead"><div><h1>Şirket bilgilerim</h1><p class="sub" style="margin:2px 0 0">Bilgiler yalnızca bu telefonda saklanır. Yanındaki simgeyle kopyalarsın.</p></div></div>
+  const d=coEdit?cod:co;
+  const empty=!coText();
+  return `<div class="nhead"><div><h1>Şirket bilgilerim</h1><p class="sub" style="margin:2px 0 0">${coEdit?"Düzenleme açık. Değişiklikler Kaydet'e basana kadar kaydolmaz.":"Bilgiler yalnızca bu telefonda saklanır. Değiştirmek için Düzenle'ye bas."}</p></div></div>
   <div class="card sec"><div class="eyebrow">Şirket</div>
-    ${cfield("cunvan","Şirket ünvanı",co.unvan,"Örn: Demir Mimarlık Ltd. Şti.")}
-    ${cfield("cvd","Vergi dairesi",co.vd,"Örn: Kadıköy")}
-    ${cfield("cvno","Vergi no",co.vno,"10 haneli vergi no","text","numeric")}
-    <div class="field"><label for="cadres">Adres</label><textarea id="cadres" style="height:84px" placeholder="Açık adres">${esc(co.adres||"")}</textarea></div>
-    ${cfield("ctel","Telefon",co.tel,"05xx xxx xx xx","text","tel")}
-    ${cfield("cmail","E-posta",co.mail,"ornek@firma.com")}
+    ${cfield("cunvan","Şirket ünvanı",d.unvan,"Örn: Demir Mimarlık Ltd. Şti.")}
+    ${cfield("cvd","Vergi dairesi",d.vd,"Örn: Kadıköy")}
+    ${cfield("cvno","Vergi no",d.vno,"10 haneli vergi no","numeric")}
+    <div class="field"><label for="cadres">Adres</label><textarea id="cadres" style="height:84px" placeholder="${coEdit?"Açık adres":"—"}"${coEdit?"":" readonly"}>${esc(d.adres||"")}</textarea></div>
+    ${cfield("ctel","Telefon",d.tel,"05xx xxx xx xx","tel")}
+    ${cfield("cmail","E-posta",d.mail,"ornek@firma.com")}
   </div>
   <div class="eyebrow" style="margin:20px 0 -4px">Banka hesapları</div>
-  ${co.banks.map((b,i)=>`<div class="card sec" data-bank="${i}">
-    <div class="row"><span class="eyebrow">Hesap ${i+1}</span><button type="button" class="iconbtn" data-bdel="${i}" aria-label="Hesabı sil" style="width:36px;height:36px"><span class="ms" style="font-size:20px">delete</span></button></div>
+  ${!d.banks.length&&!coEdit?'<p class="hint" style="margin-top:12px">Henüz banka hesabı yok.</p>':""}
+  ${d.banks.map((b,i)=>`<div class="card sec" data-bank="${i}">
+    <div class="row"><span class="eyebrow">Hesap ${i+1}</span>${coEdit?`<button type="button" class="iconbtn" data-bdel="${i}" aria-label="Hesabı sil" style="width:36px;height:36px"><span class="ms" style="font-size:20px">delete</span></button>`:""}</div>
     ${cfield("bb"+i,"Banka",b.banka,"Örn: Garanti BBVA")}
     ${cfield("bs"+i,"Şube (isteğe bağlı)",b.sube,"Şube adı veya kodu")}
     ${cfield("bh"+i,"Hesap sahibi",b.sahip,"Ünvan veya ad soyad")}
     ${cfield("bi"+i,"IBAN",b.iban,"TR00 0000 0000 0000 0000 0000 00")}
   </div>`).join("")}
-  <div class="sheetrow" style="margin-top:12px"><button class="btn big sec2" type="button" id="badd"><span class="ms">add</span>Banka hesabı ekle</button></div>
-  <div class="sheetrow" style="margin-top:8px"><button class="btn big" type="button" id="callcp"><span class="ms">content_copy</span>Tümünü kopyala</button></div>
-  <p class="hint" style="margin-top:8px">"Tümünü kopyala" fatura ya da ödeme bilgisi olarak yapıştırılabilir düz metin üretir.</p>`;
+  ${coEdit?`<div class="sheetrow" style="margin-top:12px"><button class="btn big sec2" type="button" id="badd"><span class="ms">add</span>Banka hesabı ekle</button></div>
+  <div class="sheetrow" style="margin-top:8px"><button class="btn big sec2" type="button" id="cvaz">Vazgeç</button><button class="btn big" type="button" id="csave"><span class="ms">check</span>Kaydet</button></div>`
+  :`<div class="sheetrow" style="margin-top:12px"><button class="btn big" type="button" id="cedit"><span class="ms">edit</span>${empty?"Bilgileri gir":"Düzenle"}</button></div>
+  ${empty?"":`<div class="sheetrow" style="margin-top:8px"><button class="btn big sec2" type="button" id="callcp"><span class="ms">content_copy</span>Tümünü kopyala</button></div>
+  <p class="hint" style="margin-top:8px">"Tümünü kopyala" fatura ya da ödeme bilgisi olarak yapıştırılabilir düz metin üretir.</p>`}`}`;
 }
 function bindSirket(){
-  const map={cunvan:"unvan",cvd:"vd",cvno:"vno",cadres:"adres",ctel:"tel",cmail:"mail"};
-  Object.entries(map).forEach(([id,k])=>{const el=$("#"+id);if(el)el.oninput=()=>{co[k]=el.value;coSave()}});
-  co.banks.forEach((b,i)=>{[["bb","banka"],["bs","sube"],["bh","sahip"],["bi","iban"]].forEach(([p,k])=>{const el=$("#"+p+i);if(!el)return;
-    el.oninput=()=>{b[k]=el.value;coSave()};
-    if(k==="iban")el.onblur=()=>{el.value=b.iban=fmtIban(el.value);coSave()}})});
+  if(coEdit){
+    const map={cunvan:"unvan",cvd:"vd",cvno:"vno",cadres:"adres",ctel:"tel",cmail:"mail"};
+    Object.entries(map).forEach(([id,k])=>{const el=$("#"+id);if(el)el.oninput=()=>{cod[k]=el.value}});
+    cod.banks.forEach((b,i)=>{[["bb","banka"],["bs","sube"],["bh","sahip"],["bi","iban"]].forEach(([p,k])=>{const el=$("#"+p+i);if(!el)return;
+      el.oninput=()=>{b[k]=el.value};
+      if(k==="iban")el.onblur=()=>{el.value=b.iban=fmtIban(el.value)}})});
+    $("#view").querySelectorAll("[data-bdel]").forEach(btn=>btn.onclick=()=>{if(confirm("Bu banka hesabı silinsin mi? (Kaydet'e basana kadar kalıcı değil)")){cod.banks.splice(+btn.dataset.bdel,1);render(true)}});
+    $("#badd").onclick=()=>{cod.banks.push({banka:"",sube:"",sahip:cod.unvan||"",iban:""});render(true);const el=$("#bb"+(cod.banks.length-1));if(el)el.focus()};
+    $("#csave").onclick=()=>{co=JSON.parse(JSON.stringify(cod));coSave();coEdit=false;cod=null;toast("Kaydedildi");render(true);window.scrollTo(0,0)};
+    $("#cvaz").onclick=()=>{if(JSON.stringify(cod)===JSON.stringify(co)||confirm("Yaptığın değişiklikler kaydedilmeyecek. Vazgeçilsin mi?")){coEdit=false;cod=null;render(true);window.scrollTo(0,0)}};
+  }else{
+    $("#cedit").onclick=()=>{cod=JSON.parse(JSON.stringify(co));coEdit=true;render(true);window.scrollTo(0,0)};
+    const ca=$("#callcp");if(ca)ca.onclick=()=>copy(coText());
+  }
   $("#view").querySelectorAll("[data-cpy]").forEach(btn=>btn.onclick=()=>{const el=$("#"+btn.dataset.cpy);if(el&&el.value)copy(el.value);else toast("Alan boş")});
-  $("#view").querySelectorAll("[data-bdel]").forEach(btn=>btn.onclick=()=>{if(confirm("Bu banka hesabı silinsin mi?")){co.banks.splice(+btn.dataset.bdel,1);coSave();render(true)}});
-  $("#badd").onclick=()=>{co.banks.push({banka:"",sube:"",sahip:co.unvan||"",iban:""});coSave();render(true);const i=co.banks.length-1;const el=$("#bb"+i);if(el)el.focus()};
-  $("#callcp").onclick=()=>{const t=coText();if(t)copy(t);else toast("Önce bilgi gir")};
 }
 
 /* ============ Çizim ve olaylar ============ */
@@ -1031,7 +1043,7 @@ function render(keepScroll){
   if(keepScroll)window.scrollTo(0,y);
   if(yon)ydraw();
   if(S.view==="ayar")bindAyar();
-  if(S.view==="sirket")bindSirket();
+  if(S.view==="sirket")bindSirket();else{coEdit=false;cod=null}
   const nqi=$("#nq");if(nqi)nqi.oninput=()=>{S.nq=nqi.value;const pos=nqi.selectionStart;render(true);const n2=$("#nq");if(n2){n2.focus();n2.setSelectionRange(pos,pos)}};
   const hs=$("#hs");if(hs)hs.onsubmit=e=>{e.preventDefault();const q=$("#hq").value.trim();if(!q)return;go("radar",{tab:"sor"});ask("genel",q)};
   v.querySelectorAll("[data-form]").forEach(f=>{const ta=f.querySelector("textarea");
