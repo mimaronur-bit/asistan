@@ -264,6 +264,14 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 .mkt .c{font:600 12px/16px var(--sans);margin-top:1px}.mkt .c.up{color:#1b7f3b}.mkt .c.dn{color:var(--red)}.mkt .c.na{color:var(--mute);font-weight:500}
 .mkh{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .mkh .iconbtn{width:32px;height:32px}.mk.spin .iconbtn .ms{animation:mkspin 1s linear infinite}@keyframes mkspin{to{transform:rotate(360deg)}}
+.szd{font:600 11px/14px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mute);margin:18px 0 8px}
+details.sz{background:var(--card);border-radius:16px;box-shadow:var(--sh);margin-bottom:8px;padding:0 14px}
+details.sz summary{list-style:none;min-height:52px;display:flex;align-items:center;justify-content:space-between;gap:8px;font:600 15px/20px var(--sans);cursor:pointer}
+details.sz summary::-webkit-details-marker{display:none}details.sz summary .ms{color:var(--mute);transition:transform .15s}details.sz[open] summary .ms{transform:rotate(180deg)}
+details.sz .b{padding:0 0 14px}details.sz .b p{margin:0 0 8px;font-size:14px;line-height:21px}details.sz .b b{font:600 11px/14px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--mute);display:block;margin-bottom:2px}
+.szcat{font:500 11px/14px var(--sans);color:var(--red);background:var(--tint);padding:2px 8px;border-radius:999px;margin-left:8px}
+.qopt{width:100%;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:14px;padding:12px 14px;margin-top:8px;font:500 15px/21px var(--sans);color:var(--ink);min-height:48px}
+.qopt.ok{border-color:#1b7f3b;background:#e8f5ec}.qopt.no{border-color:var(--red);background:var(--tint)}.qopt:disabled{opacity:1}
 .crow{display:flex;gap:8px;align-items:center}.crow input{flex:1;min-width:0}.cpy{flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--red);display:flex;align-items:center;justify-content:center}.cpy:active{background:var(--tint)}
 .menubg{position:fixed;inset:0;z-index:60;display:none}.menubg.open{display:block}
 .menu{position:absolute;top:calc(env(safe-area-inset-top) + 56px);right:12px;min-width:230px;background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(32,26,25,.18);padding:6px;display:flex;flex-direction:column}
@@ -285,6 +293,7 @@ nav.tab .on:after{content:"";position:absolute;bottom:2px;width:4px;height:4px;b
 </div></header>
 
 <div class="menubg" id="menubg"><div class="menu" role="menu" aria-label="Menü">
+  <button type="button" role="menuitem" data-go="sozluk"><span class="ms">school</span>Sözlüğüm</button>
   <button type="button" role="menuitem" data-go="sirket"><span class="ms">apartment</span>Şirket bilgilerim</button>
   <button type="button" role="menuitem" data-go="yonetmelik"><span class="ms">menu_book</span>Yönetmelikler</button>
   <button type="button" role="menuitem" data-go="yonetmelik" data-ymode="deg"><span class="ms">gavel</span>Mevzuat değişiklikleri</button>
@@ -363,7 +372,7 @@ async function copy(t){try{await navigator.clipboard.writeText(t);toast("Kopyala
 
 /* ============ İçerik: gizli GitHub deposundan oku, cihazda sakla ============ */
 let cache={};                 // path -> {sha,text}
-let items=[],finans=[],rules="",index="",list="",articles=[],bugun=null,degs=[];
+let items=[],finans=[],rules="",index="",list="",articles=[],bugun=null,degs=[],terms=[];
 let loaded=false,statusText="İçerik yükleniyor…",syncing=false;
 async function gh(path,raw){
   const r=await fetch("https://api.github.com/repos/"+CFG.get("repo")+path,{headers:{Authorization:"Bearer "+CFG.get("gh"),Accept:raw?"application/vnd.github.raw+json":"application/vnd.github+json","X-GitHub-Api-Version":"2022-11-28"}});
@@ -374,6 +383,7 @@ const isRadar=p=>/^(radar\/)?raporlar\/.+\.md$/.test(p);
 const isSrc=p=>/^kaynaklar\/.+\.md$/.test(p);
 const isBugun=p=>/^bugun\/.+\.md$/.test(p);
 const isDeg=p=>/^degisiklikler\/.+\.md$/.test(p);
+const isSoz=p=>/^sozluk\/.+\.md$/.test(p);
 let syncP=null;
 function sync(){if(syncing)return syncP;syncP=sync0();return syncP}
 async function sync0(){
@@ -382,7 +392,7 @@ async function sync0(){
   syncing=true;$("#refresh").disabled=true;
   try{
     const tree=await gh("/git/trees/HEAD?recursive=1");
-    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)||isBugun(e.path)||isDeg(e.path)));
+    const want=tree.tree.filter(e=>e.type==="blob"&&(isRadar(e.path)||isSrc(e.path)||isBugun(e.path)||isDeg(e.path)||isSoz(e.path)));
     const todo=want.filter(e=>!cache[e.path]||cache[e.path].sha!==e.sha);
     let i=0,fails=0;
     await Promise.all(Array.from({length:6},async()=>{while(i<todo.length){const e=todo[i++];try{const text=await gh("/contents/"+e.path.split("/").map(encodeURIComponent).join("/"),true);cache[e.path]={sha:e.sha,text}}catch(err){fails++}}}));
@@ -418,6 +428,12 @@ function parseDeg(path,t){const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[
   for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const [code,...r]=h[1].split(/\s+[—–-]\s+/);
     out.push({date,code:code.trim(),name:r.join(" — ").trim(),rg:fd(b,"Resmi Gazete"),mad:fd(b,"Etkilenen maddeler"),ne:fd(b,"Ne değişti"),eski:fd(b,"Eski"),yeni:fd(b,"Yeni"),kaynak:fd(b,"Kaynak")})}
   return out}
+function parseTerms(files){const m=new Map();
+  for(const [path,t] of files.sort((a,b)=>a[0].localeCompare(b[0]))){const date=(path.match(/(\d{4}-\d{2}-\d{2})/)||[,""])[1];
+    for(const b of t.split(/\n(?=## )/)){const h=b.match(/^## (.+)$/m);if(!h)continue;const term=h[1].trim(),k=norm(term);
+      const o={date,term,def:fd(b,"Tanım"),why:fd(b,"Neden önemli"),ex:fd(b,"Örnek"),cat:fd(b,"Kategori")};
+      if(!o.def)continue;const old=m.get(k);m.set(k,Object.assign(o,{date:old?old.date:date}))}}
+  return [...m.values()].sort((a,b)=>b.date.localeCompare(a.date)||a.term.localeCompare(b.term,"tr"))}
 function parseSources(t){const s={};for(const l of t.split("\n")){const m=l.match(/^\|\s*([A-Z0-9]{2,10})\s*\|\s*([^|]+?)\s*\|/);if(m&&m[1]!=="Kod")s[m[1]]={code:m[1],name:m[2],count:0}}return s}
 function parseFile(path,text){
   const byName={};Object.values(sources).forEach(s=>byName[s.name]=s.code);
@@ -442,6 +458,7 @@ function buildAll(){
   sources=parseSources(list);articles=[];
   for(const p of paths){if(!isSrc(p))continue;const rel=p.slice("kaynaklar/".length);if(rel.includes("/")&&!/notlar\.md$/.test(rel))parseFile(p,cache[p].text)}
   const bp=paths.filter(isBugun)[0];bugun=bp?parseBugun(cache[bp].text):null;
+  terms=parseTerms(paths.filter(isSoz).map(p=>[p,cache[p].text]));
   degs=[];for(const p of paths)if(isDeg(p))degs.push(...parseDeg(p,cache[p].text));degs.sort((a,b)=>b.date.localeCompare(a.date));
   loaded=Object.keys(cache).length>0;
 }
@@ -474,8 +491,8 @@ let S={view:"home",tab:"akis",profile:"",topic:null,item:null,fi:0,nf:"all",nq:"
 let notes=[];
 try{notes=JSON.parse(localStorage.getItem("asnotes")||"[]")}catch(e){}
 const chats={};
-const VIEWS=["home","radar","yonetmelik","notes","ayar","sirket"];
-const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar",sirket:"sirket"};
+const VIEWS=["home","radar","yonetmelik","notes","ayar","sirket","sozluk"];
+const HASH={home:"",radar:"radar",yonetmelik:"yonetmelik",notes:"notlar",ayar:"ayarlar",sirket:"sirket",sozluk:"sozluk"};
 function go(view,extra){Object.assign(S,{view,item:null,topic:null},extra||{});history.replaceState(null,"",HASH[view]?"#"+HASH[view]:location.pathname+location.search);render();window.scrollTo(0,0)}
 function fromHash(){const h=location.hash.slice(1);const k=Object.keys(HASH).find(x=>HASH[x]===h&&h);S.view=k||"home"}
 
@@ -515,6 +532,7 @@ function vHome(){
   <h1 class="hl">${hi}, Onur</h1>
   ${ozet}
   <div class="sec" id="mkcard">${mkHtml()}</div>
+  ${szCard()}
   <section class="sec" aria-label="Bölümler">
     <button class="card tile" type="button" data-go="radar" style="width:100%;min-height:120px">
       <span class="ibox"><span class="ms">explore</span></span>
@@ -1096,22 +1114,84 @@ function mkHtml(){
 document.addEventListener("visibilitychange",()=>{if(!document.hidden)mkLoad(false)});
 setInterval(()=>{if(!document.hidden)mkLoad(false)},300000);
 
+/* ============ Sözlüğüm: jargon defteri + 3 günde bir 5 soruluk test (API'siz) ============ */
+let qd={last:"",hist:[],miss:{}};try{qd=Object.assign(qd,JSON.parse(localStorage.getItem("asquiz")||"{}"))}catch(e){}
+function qSave(){try{localStorage.setItem("asquiz",JSON.stringify(qd))}catch(e){}}
+let qz=null;
+const dDiff=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5);
+function qDue(){if(terms.length<5)return null;if(!qd.last)return 0;const left=3-dDiff(qd.last,dayKey(new Date()));return left<=0?0:left}
+const shuf=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const maskTerm=(txt,term)=>{const w=term.replace(/\s*\(.*$/,"").trim();try{return txt.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"),"▢▢▢")}catch(e){return txt}};
+function qBuild(){
+  const missed=terms.filter(t=>qd.miss[norm(t.term)]>0),recent=terms.filter(t=>dDiff(t.date,dayKey(new Date()))<=6);
+  const pool=[];const add=a=>shuf(a).forEach(t=>{if(!pool.includes(t))pool.push(t)});add(missed);add(recent);add(terms);
+  return pool.slice(0,5).map((t,i)=>{
+    const useEx=t.ex&&i%2===1;const prompt=useEx?"Bu örnek hangi kavramı anlatıyor?":"Bu tanım hangi kavrama ait?";
+    const txt=maskTerm(useEx?t.ex:t.def,t.term);
+    const others=shuf(terms.filter(x=>x!==t&&x.cat&&x.cat===t.cat)).concat(shuf(terms.filter(x=>x!==t&&!(x.cat&&x.cat===t.cat))));
+    const opts=shuf([t].concat(others.slice(0,3)));
+    return{t,prompt,txt,opts,ans:opts.indexOf(t),pick:-1}});
+}
+function qStart(){qz={qs:qBuild(),i:0,score:0,done:false};render(true);window.scrollTo(0,0)}
+function szCard(){
+  if(!terms.length)return"";
+  const latest=terms[0].date,newN=terms.filter(t=>t.date===latest).length,due=qDue();
+  const b=due===0?'<span class="badge">Test zamanı</span>':due>0?`<span class="when">Sonraki test ${due} gün sonra</span>`:"";
+  return `<button class="card sec degc" type="button" data-go="sozluk"><span class="ibox"><span class="ms">school</span></span><span style="flex:1;text-align:left"><span class="h2" style="display:block">Sözlüğüm</span><span class="sub" style="display:block;margin-top:2px">${terms.length} terim · son güncelleme ${trDate(latest)} (${newN} yeni)</span></span>${b}<span class="ms">chevron_right</span></button>`}
+function szItem(t){return `<details class="sz"><summary><span>${esc(t.term)}${t.cat?`<span class="szcat">${esc(t.cat)}</span>`:""}</span><span class="ms">expand_more</span></summary><div class="b"><p>${plain(t.def)}</p>${t.why?`<p><b>Neden önemli</b>${plain(t.why)}</p>`:""}${t.ex?`<p><b>Örnek</b>${plain(t.ex)}</p>`:""}</div></details>`}
+function szList(q){
+  const k=norm(q||"");const l=terms.filter(t=>!k||norm(t.term+" "+t.def+" "+t.cat).includes(k));
+  if(!l.length)return `<div class="card empty"><span class="ms">search_off</span><p class="sub">Eşleşen terim yok.</p></div>`;
+  let out="",last="";for(const t of l){if(t.date!==last){last=t.date;out+=`<div class="szd">${t.date===dayKey(new Date())?"Bugün":trDate(t.date)}</div>`}out+=szItem(t)}return out}
+function vQuiz(){
+  if(qz.done){const pc=qz.score;const miss=qz.qs.filter(q=>q.pick!==q.ans);
+    return `<div class="nhead"><div><h1>Test bitti</h1></div></div><div class="card sec" style="text-align:center"><div class="h1" style="font-size:44px">${pc}/${qz.qs.length}</div><p class="sub">${pc===5?"Harika, hepsini bildin.":pc>=3?"İyi gidiyorsun, yanlışlara bir göz at.":"Sorun değil, tekrar etmek öğrenmenin parçası. Yanlışlar bir sonraki testte yine gelecek."}</p></div>
+    ${miss.length?`<div class="szd">Tekrar bak</div>${miss.map(q=>szItem(q.t)).join("")}`:""}
+    <div class="sheetrow" style="margin-top:12px"><button class="btn big" type="button" data-qquit="1">Sözlüğe dön</button></div>`}
+  const q=qz.qs[qz.i],ans=q.pick>=0;
+  return `<div class="nhead"><div><h1>Soru ${qz.i+1}/${qz.qs.length}</h1><p class="sub" style="margin:2px 0 0">Anlayıp anlamadığını görelim.</p></div><button class="iconbtn" type="button" data-qquit="1" aria-label="Testi kapat"><span class="ms">close</span></button></div>
+  <div class="card sec"><p class="eyebrow" style="margin:0 0 8px">${q.prompt}</p><p class="txt" style="margin:0;font-size:16px;line-height:24px">${plain(q.txt)}</p></div>
+  ${q.opts.map((o,j)=>`<button class="qopt${ans?(j===q.ans?" ok":j===q.pick?" no":""):""}" type="button" data-qopt="${j}"${ans?" disabled":""}>${esc(o.term)}</button>`).join("")}
+  ${ans?`<div class="card sec" style="margin-top:12px"><p class="eyebrow" style="margin:0 0 6px">${q.pick===q.ans?"Doğru":"Doğrusu: "+esc(q.t.term)}</p><p class="txt" style="margin:0">${plain(q.t.def)}</p>${q.t.why?`<p class="txt" style="margin:8px 0 0"><b>Neden önemli:</b> ${plain(q.t.why)}</p>`:""}</div>
+  <div class="sheetrow" style="margin-top:12px"><button class="btn big" type="button" data-qnext="1">${qz.i+1<qz.qs.length?"Sonraki soru":"Sonucu gör"}</button></div>`:""}`;
+}
+function vSozluk(){
+  if(qz)return vQuiz();
+  if(!terms.length)return `<div class="nhead"><div><h1>Sözlüğüm</h1><p class="sub" style="margin:2px 0 0">Radar ile öğrendiğin piyasa terimleri burada birikir.</p></div></div>
+  <div class="card empty sec"><span class="ms">school</span><p class="h2" style="margin-top:8px">Henüz terim yok</p><p class="sub">Radar projesi her gün yeni terimleri depodaki <b>sozluk</b> klasörüne yazdıkça burada görünür. Ayarlardan içerik bağlantısının açık olduğundan emin ol ve ↻ ile yenile.</p></div>`;
+  const due=qDue(),n=terms.length;
+  const tcard=due===null?`<div class="card sec"><div class="eyebrow">Test</div><p class="hint" style="margin:6px 0 0">Test için en az 5 terim gerekir (şu an ${n}).</p></div>`
+   :`<div class="card sec"><div class="row"><span class="eyebrow">5 soruluk test</span>${due===0?'<span class="badge">Zamanı geldi</span>':`<span class="when">${due} gün sonra</span>`}</div>
+    <p class="hint" style="margin:6px 0 10px">Üç günde bir kendini sına. Yanlış bildiklerin sonraki testte tekrar gelir.${qd.hist.length?` Son sonuç: <b>${qd.hist[qd.hist.length-1].score}/5</b> (${trDate(qd.hist[qd.hist.length-1].date)}).`:""}</p>
+    <div class="sheetrow"><button class="btn big${due===0?"":" sec2"}" type="button" data-qstart="1"><span class="ms">quiz</span>${due===0?"Testi başlat":"Yine de çöz"}</button></div></div>`;
+  return `<div class="nhead"><div><h1>Sözlüğüm</h1><p class="sub" style="margin:2px 0 0">${n} terim · Radar ile öğrendiklerin</p></div></div>
+  ${tcard}
+  <label class="nsearch" style="margin-top:8px"><span class="ms muted" style="font-size:18px">search</span><span style="position:absolute;width:1px;height:1px;overflow:hidden">Sözlükte ara</span><input id="szq" type="search" placeholder="Terim ara…" autocomplete="off"></label>
+  <div id="szlist">${szList("")}</div>`;
+}
+function bindSozluk(){const i=$("#szq");if(i)i.oninput=()=>{$("#szlist").innerHTML=szList(i.value)}}
+function qAnswer(j){const q=qz.qs[qz.i];if(q.pick>=0)return;q.pick=j;const k=norm(q.t.term);
+  if(j===q.ans){qz.score++;if(qd.miss[k])qd.miss[k]=Math.max(0,qd.miss[k]-1)}else qd.miss[k]=(qd.miss[k]||0)+1;render(true)}
+function qNext(){if(qz.i+1<qz.qs.length){qz.i++;render(true);window.scrollTo(0,0)}else{qz.done=true;qd.last=dayKey(new Date());qd.hist.push({date:qd.last,score:qz.score});qd.hist=qd.hist.slice(-30);qSave();render(true);window.scrollTo(0,0)}}
+
 /* ============ Çizim ve olaylar ============ */
 function render(keepScroll){
   const v=$("#view");
   const item=S.item&&S.view==="radar"||S.item&&S.view==="home"?S.item:null;
-  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar",sirket:"Şirket bilgilerim"})[S.view];
+  $("#crumb").textContent=item?"Madde Detayı":({home:"Ana Sayfa",radar:"Radar",yonetmelik:"Yönetmelik",notes:"Notlar",ayar:"Ayarlar",sirket:"Şirket bilgilerim",sozluk:"Sözlüğüm"})[S.view];
   $("#menubtn").style.background=S.view==="yonetmelik"?"var(--tint)":"";$("#menubtn").style.color=S.view==="yonetmelik"?"var(--red)":"";
   document.querySelectorAll("nav.tab [data-go]").forEach(b=>b.classList.toggle("on",b.dataset.go===S.view));
   const y=window.scrollY;
   const yon=S.view==="yonetmelik";
   v.className="wrap"+(yon?" yv":"");
   $("#ybar").style.display=yon?"block":"none";
-  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():S.view==="sirket"?vSirket():vHome();
+  v.innerHTML=item?vItem():S.view==="radar"?vRadar():S.view==="yonetmelik"?vYon():S.view==="notes"?vNotes():S.view==="ayar"?vAyar():S.view==="sirket"?vSirket():S.view==="sozluk"?vSozluk():vHome();
   if(keepScroll)window.scrollTo(0,y);
   if(yon)ydraw();
   if(S.view==="ayar")bindAyar();
+  if(S.view==="sozluk")bindSozluk();
   if(S.view==="sirket")bindSirket();else{coEdit=false;cod=null}
+  if(S.view!=="sozluk")qz=null;
   const nqi=$("#nq");if(nqi)nqi.oninput=()=>{S.nq=nqi.value;const pos=nqi.selectionStart;render(true);const n2=$("#nq");if(n2){n2.focus();n2.setSelectionRange(pos,pos)}};
   v.querySelectorAll("[data-form]").forEach(f=>{const ta=f.querySelector("textarea");
     ta.oninput=()=>{ta.style.height="38px";ta.style.height=Math.min(ta.scrollHeight,140)+"px"};
@@ -1132,6 +1212,10 @@ document.addEventListener("click",e=>{
   if(d.copyart!==undefined){copy(d.copyart);return}
   if(d.deep){ask(d.deep,"");return}
   if(d.sug){const box=t.closest("[data-chat]");ask(box.dataset.chat,d.sug);return}
+  if(d.qstart){qStart();return}
+  if(d.qopt!==undefined){qAnswer(+d.qopt);return}
+  if(d.qnext){qNext();return}
+  if(d.qquit){if(qz&&!qz.done&&!confirm("Test yarıda kalacak ve sayılmayacak. Çıkılsın mı?"))return;qz=null;render(true);window.scrollTo(0,0);return}
   if(d.mkr){mkLoad(true);return}
   if(d.nf){S.nf=d.nf;render(true);return}
   if(d.newnote){openNote();return}
