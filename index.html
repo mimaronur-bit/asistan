@@ -494,6 +494,12 @@ function vHome(){
       <div class="row" style="margin-bottom:8px"><span class="badge">Bugün</span><span class="when"><span class="ms">schedule</span>${esc(bugun.upd||"")}</span></div>
       ${bugun.secs.map(sc=>`<div class="bsec"><span class="eyebrow">${esc(sc.h)}</span><ul class="blist">${sc.lines.slice(0,6).map(l=>`<li>${plain(l)}</li>`).join("")}</ul>${sc.lines.length>6?`<span class="sub">+${sc.lines.length-6} daha</span>`:""}</div>`).join("")}</article>`:"";
   const degCard=degs.length?`<button class="card sec degc" type="button" data-ymode="deg" data-go="yonetmelik"><span class="ibox"><span class="ms">gavel</span></span><span style="flex:1;text-align:left"><span class="h2" style="display:block">Mevzuat değişiklikleri</span><span class="sub" style="display:block;margin-top:2px">${esc(degs[0].code)}: ${esc((degs[0].ne||"").slice(0,70))} · ${trDate(degs[0].date)}</span></span><span class="ms">chevron_right</span></button>`:"";
+  const ozet=f?(()=>{const txt=f.text.replace(/^#\s.+\n/,"").replace(/^#+\s.*$/gm,"").replace(/\n{2,}/g,"\n").trim();
+    return `<button class="card sec ozetc" type="button" data-go="radar" data-tab="ozet" style="width:100%;text-align:left;border:0;display:block">
+      <div class="row" style="margin-bottom:8px"><span class="badge">Günün sektörel özeti</span><span class="when"><span class="ms">schedule</span>${ago(f.date)}</span></div>
+      <p class="txt clamp" style="-webkit-line-clamp:7;margin:0">${plain(txt.slice(0,700))}</p>
+      <div class="row" style="margin-top:12px"><span class="when">Para piyasası · emlak · inşaat</span><span class="btn" style="pointer-events:none">Tamamını oku<span class="ms">arrow_forward</span></span></div></button>`})()
+    :`<button class="card sec ozetc" type="button" data-go="radar" data-tab="ozet" style="width:100%;text-align:left;border:0;display:block"><div class="row" style="margin-bottom:8px"><span class="badge">Günün sektörel özeti</span></div><p class="txt" style="margin:0">${loaded?"Bugünün analizi henüz gelmedi. Hafta içi sabahları burada görünecek.":esc(statusText)}</p></button>`;
   let feat;
   if(top){const what=field(top.body,["Ne oldu","Ne değişti"])||top.body.slice(0,300);
     feat=`<article class="card">
@@ -507,6 +513,7 @@ function vHome(){
   <div class="greet-row"><span class="eyebrow">${GUNLER[n.getDay()]}, ${n.getDate()} ${AYLAR[n.getMonth()]}</span>
     <span class="pill"><span class="dot"></span>${loaded?items.length+" gelişme":esc(statusText)}</span></div>
   <h1 class="hl">${hi}, Onur</h1>
+  ${ozet}
   <div class="sec" id="mkcard">${mkHtml()}</div>
   <section class="sec" aria-label="Bölümler">
     <button class="card tile" type="button" data-go="radar" style="width:100%;min-height:120px">
